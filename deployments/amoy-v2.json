@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "network": "amoy",
+  "chainId": 80002,
+  "deployer": "0xE6dfCDfec1C431d77c046D3D2a3CEdcE27407541",
+  "platformAdmin": "0xE6dfCDfec1C431d77c046D3D2a3CEdcE27407541",
+  "timestamp": "2026-09-28T03:10:31.984Z",
+  "contracts": {
+    "AccessControl": "0x3696aa090f6E4BBEe89B7c9e4A999F2AcA3842E6",
+    "IdentityNFT": "0x1fAd363b90A74134f038df1619927037863B56f3",
+    "Timeline": "0x65aE9aB256790344E18EaF8E87a829EFdA1Ab9b3",
+    "CredentialRegistry": "0x1D21e097f7939328a8aD6Ea3A040A7E60D92e461",
+    "PaymentSplitter": "0x5d2a825CF2Bd901226614AB2D24124EdF52cF10d"
+  }
+}
