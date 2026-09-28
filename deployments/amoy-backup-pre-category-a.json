@@ -1,0 +1,22 @@
+{
+  "network": "amoy",
+  "chainId": 80002,
+  "deployer": "0xE6dfCDfec1C431d77c046D3D2a3CEdcE27407541",
+  "timestamp": "2026-01-25T13:33:38.628Z",
+  "contracts": {
+    "AccessControl": "0x8FA3008b186D9f9E49975E2C32E0ebdbC4949bD7",
+    "IdentityNFT": "0x5dE95d84dCA5410b6c6441A653ed0a357e1aBAaD",
+    "CredentialRegistry": "0x05A4351150da62FDb02508C19e8D409b94669811",
+    "Timeline": "0x461fa62C9788d3513447857DE86E59A266F6fcbf",
+    "PaymentSplitter": "0xA0EB4b4D0Df47DCd2fa252004f74be9d32C3b499"
+  },
+  "gasUsed": {
+    "AccessControl": "1781862",
+    "IdentityNFT": "3056798",
+    "CredentialRegistry": "1957557",
+    "Timeline": "1715268",
+    "PaymentSplitter": "1539407"
+  },
+  "phase2DeployedAt": "2026-01-25T22:41:50.023Z",
+  "note": "Backup before Category A redeployment - Added transferOrganizationOwnership function"
+}

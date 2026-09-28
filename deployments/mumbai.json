@@ -1,0 +1,16 @@
+{
+  "network": "mumbai",
+  "chainId": 80002,
+  "deployer": "0xE6dfCDfec1C431d77c046D3D2a3CEdcE27407541",
+  "timestamp": "2026-01-24T17:16:22.878Z",
+  "contracts": {
+    "AccessControl": "0x5EC28432fD16C96a77178C6189323015031517E8",
+    "IdentityNFT": "0xD7779979912A805283BB7268B0e22aA017C785Dd",
+    "CredentialRegistry": "0x6648271F30d621B0B7043568C9e01c87C3d0dF34"
+  },
+  "gasUsed": {
+    "AccessControl": "1781862",
+    "IdentityNFT": "3037351",
+    "CredentialRegistry": "1957569"
+  }
+}

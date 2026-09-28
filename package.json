@@ -1,0 +1,30 @@
+{
+  "name": "eyekon-contracts",
+  "version": "1.0.0",
+  "description": "EYEKON Platform Smart Contracts",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "test:gas": "REPORT_GAS=true hardhat test",
+    "deploy:mumbai": "hardhat run scripts/deploy.ts --network mumbai",
+    "deploy:polygon": "hardhat run scripts/deploy.ts --network polygon",
+    "clean": "hardhat clean"
+  },
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "polygon",
+    "nft",
+    "credentials"
+  ],
+  "author": "EYEKON Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^17.2.3",
+    "ethers": "^6.4.0",
+    "hardhat": "^2.22.0"
+  }
+}

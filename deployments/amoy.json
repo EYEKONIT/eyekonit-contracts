@@ -1,0 +1,19 @@
+{
+  "network": "amoy",
+  "chainId": 80002,
+  "deployer": "0xE6dfCDfec1C431d77c046D3D2a3CEdcE27407541",
+  "timestamp": "2026-01-28T00:30:36.161Z",
+  "contracts": {
+    "AccessControl": "0x4b4948c485c7C3D1C24E7feA8e937909b36288f5",
+    "IdentityNFT": "0x54a8bAFf5d89F2672E2deB90e4d28E67fB8B83d5",
+    "CredentialRegistry": "0x7d0e97CA4c1313f6185BF670A2A2AD731AD02eAE",
+    "Timeline": "0x36432D561763D9f0A7bd7D4fBEA856e6E333D287",
+    "PaymentSplitter": "0x940FF0dbA07941551Dc7ae12E299495072569Bb9"
+  },
+  "gasUsed": {
+    "AccessControl": "2198266",
+    "IdentityNFT": "3323872",
+    "CredentialRegistry": "1957569"
+  },
+  "phase2DeployedAt": "2026-01-28T00:31:05.927Z"
+}
