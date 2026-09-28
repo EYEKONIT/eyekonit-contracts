@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 interface IIdentityOwnershipV2 {
     function getIdentityCreator(uint256 identityId) external view returns (address);
+    function canManageIdentity(uint256 identityId, address account) external view returns (bool);
 }
 
 contract PaymentSplitterV2 is ReentrancyGuard {
@@ -30,7 +31,7 @@ contract PaymentSplitterV2 is ReentrancyGuard {
     }
 
     modifier onlyIdentityCreator(uint256 identityId) {
-        require(identityContract.getIdentityCreator(identityId) == msg.sender, "Only identity creator");
+        require(identityContract.canManageIdentity(identityId, msg.sender), "Not authorized for identity");
         _;
     }
 

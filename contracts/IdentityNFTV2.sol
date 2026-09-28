@@ -208,7 +208,7 @@ contract IdentityNFTV2 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712 {
     }
 
     function mintIdentity(address to, uint256 identityId) external nonReentrant returns (uint256) {
-        require(identities[identityId].creator == msg.sender, "Only creator can mint");
+        require(canManageIdentity(identityId, msg.sender), "Not authorized to mint");
         return _mintIdentity(to, identityId);
     }
 
@@ -228,41 +228,46 @@ contract IdentityNFTV2 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712 {
     }
 
     function linkIdentityToTimeline(uint256 identityId, uint256 timelineId) external {
-        require(identities[identityId].creator == msg.sender, "Only creator can link");
+        require(canManageIdentity(identityId, msg.sender), "Not authorized to link");
         require(timelineId != 0, "Invalid timeline");
         identityToTimeline[identityId] = timelineId;
         emit IdentityTimelineLinked(identityId, timelineId);
     }
 
     function setPrice(uint256 identityId, uint256 newPrice) external {
-        require(identities[identityId].creator == msg.sender, "Only creator can update price");
+        require(canManageIdentity(identityId, msg.sender), "Not authorized to update price");
         identities[identityId].price = newPrice;
         emit PriceUpdated(identityId, newPrice);
     }
 
     function setSupplyLimit(uint256 identityId, uint256 limit) external {
         Identity storage identity = identities[identityId];
-        require(identity.creator == msg.sender, "Only creator can update supply");
+        require(canManageIdentity(identityId, msg.sender), "Not authorized to update supply");
         require(limit == 0 || limit >= identity.supply, "Limit below current supply");
         identity.maxSupply = limit;
         emit SupplyLimitSet(identityId, limit);
     }
 
     function updateMetadataURI(uint256 identityId, string calldata newURI) external {
-        require(identities[identityId].creator == msg.sender, "Only creator can update metadata");
+        require(canManageIdentity(identityId, msg.sender), "Not authorized to update metadata");
         require(bytes(newURI).length > 0, "Metadata URI required");
         identities[identityId].metadataURI = newURI;
         emit MetadataURIUpdated(identityId, newURI);
     }
 
     function setIdentityActive(uint256 identityId, bool active) external {
-        require(identities[identityId].creator == msg.sender, "Only creator can change status");
+        require(canManageIdentity(identityId, msg.sender), "Not authorized to change status");
         identities[identityId].isActive = active;
         emit IdentityActiveStatusChanged(identityId, active);
     }
 
     function getIdentity(uint256 identityId) external view returns (Identity memory) { return identities[identityId]; }
     function getIdentityCreator(uint256 identityId) external view returns (address) { return identities[identityId].creator; }
+    function canManageIdentity(uint256 identityId, address account) public view returns (bool) {
+        Identity memory identity = identities[identityId];
+        return identity.creator == account ||
+            (identity.organizationId != 0 && accessControl.isOrganizationAdminOrOwner(identity.organizationId, account));
+    }
     function getHolders(uint256 identityId) external view returns (address[] memory) { return _identityHolders[identityId]; }
     function getHolderCount(uint256 identityId) external view returns (uint256) { return _identityHolders[identityId].length; }
     function balanceOfIdentity(address account, uint256 identityId) external view returns (uint256) { return userIdentityBalance[account][identityId]; }

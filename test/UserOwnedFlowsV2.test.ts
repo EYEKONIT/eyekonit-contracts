@@ -90,6 +90,8 @@ describe("EYEKON V2 user-owned flows", function () {
     const adminId = await createIdentity(identity, admin, "Admin Identity", 1);
     expect((await identity.getIdentity(ownerId)).creator).to.equal(owner.address);
     expect((await identity.getIdentity(adminId)).creator).to.equal(admin.address);
+    await identity.connect(owner).setPrice(adminId, 25);
+    expect((await identity.getIdentity(adminId)).price).to.equal(25);
   });
 
   it("rejects equivalent identity names globally", async function () {
@@ -323,7 +325,7 @@ describe("EYEKON V2 user-owned flows", function () {
     const id = await createIdentity(identity, owner, "Paid Identity", 0, { price });
     await expect(
       payment.connect(outsider).configureRoyalty(id, 500, [owner.address], [10000]),
-    ).to.be.revertedWith("Only identity creator");
+    ).to.be.revertedWith("Not authorized for identity");
     await payment
       .connect(owner)
       .configureRoyalty(id, 500, [owner.address, recipient.address], [5000, 5000]);
