@@ -410,6 +410,25 @@ contract EyekonAccessControl is AccessControl {
     }
 
     /**
+     * @dev Check organization-scoped authority without relying on global roles.
+     * Contracts that mutate organization-owned resources must use this check.
+     */
+    function isOrganizationAdminOrOwner(
+        uint256 orgId,
+        address account
+    ) external view returns (bool) {
+        bytes32 role = orgMemberRoles[orgId][account];
+        return
+            organizations[orgId].isActive &&
+            (role == ORG_OWNER_ROLE || role == ORG_ADMIN_ROLE);
+    }
+
+    function getOrganizationOwner(uint256 orgId) external view returns (address) {
+        require(organizations[orgId].isActive, "Organization does not exist");
+        return organizations[orgId].owner;
+    }
+
+    /**
      * @dev Check if an account is a member of an organization
      * @param orgId Organization ID
      * @param account Address to check

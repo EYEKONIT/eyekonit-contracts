@@ -5,9 +5,10 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "deploy:amoy:v2": "hardhat run scripts/deploy-v2.ts --network amoy",
     "test:coverage": "hardhat coverage",
     "test:gas": "REPORT_GAS=true hardhat test",
-    "deploy:mumbai": "hardhat run scripts/deploy.ts --network mumbai",
+    "deploy:mumbai": "hardhat run scripts/deploy.ts --network amoy",
     "deploy:polygon": "hardhat run scripts/deploy.ts --network polygon",
     "clean": "hardhat clean"
   },
@@ -22,9 +23,9 @@
   "license": "MIT",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@openzeppelin/contracts": "^5.0.0",
-    "dotenv": "^17.2.3",
-    "ethers": "^6.4.0",
-    "hardhat": "^2.22.0"
+    "@openzeppelin/contracts": "^5.4.0",
+    "dotenv": "^17.4.2",
+    "ethers": "^6.17.0",
+    "hardhat": "^2.29.1"
   }
 }

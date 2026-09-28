@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+import type { Fragment } from "ethers";
 
 async function main() {
   console.log("Verifying deployed AccessControl contract...\n");
@@ -7,7 +8,7 @@ async function main() {
   
   // Get contract instance
   const AccessControl = await ethers.getContractFactory("EyekonAccessControl");
-  const accessControl = AccessControl.attach(accessControlAddress);
+  const accessControl = AccessControl.attach(accessControlAddress) as any;
 
   try {
     // Test 1: Check if contract exists
@@ -32,7 +33,7 @@ async function main() {
       const iface = accessControl.interface;
       const fragment = iface.getFunction("transferOrganizationOwnership");
       console.log(`✅ transferOrganizationOwnership function exists`);
-      console.log(`   Selector: ${fragment.selector}`);
+      console.log(`   Selector: ${fragment?.selector}`);
     } catch (error: any) {
       console.log(`❌ transferOrganizationOwnership function NOT FOUND`);
       console.log(`   This means the contract needs to be redeployed!`);
@@ -41,10 +42,9 @@ async function main() {
     // Test 4: List all available functions
     console.log("\n📋 Available functions:");
     const iface = accessControl.interface;
-    const functions = Object.keys(iface.functions);
-    functions.forEach(func => {
-      console.log(`   - ${func}`);
-    });
+    iface.fragments
+      .filter((fragment: Fragment) => fragment.type === "function")
+      .forEach((fragment: Fragment) => console.log(`   - ${fragment.format()}`));
 
   } catch (error: any) {
     console.error("Error:", error.message);

@@ -2,6 +2,31 @@
 
 Smart contracts for the EYEKON platform, built with Hardhat and deployed on Polygon.
 
+## V2 user-owned architecture
+
+The V2 contracts are the launch target. They are implemented and tested but are
+not deployed yet. Existing `deployments/amoy.json` addresses are the legacy
+registrar-owned contracts.
+
+- Users register organizations directly; `msg.sender` becomes the on-chain owner.
+- Personal identity creation is permissionless and records the connected wallet
+  as creator. Organization identities require an organization owner or admin.
+- Invite-only claims use an EIP-712 voucher signed by the identity creator and
+  bound to the claimant, identity, nonce, and expiry.
+- Timeline creation and management require organization authority; only the
+  Identity contract may record chapter completion.
+- Credential issuance records the actual organization wallet as issuer and is
+  restricted to organization owners/admins.
+- Royalty configuration is controlled by the identity creator, not a platform
+  registrar.
+
+Run `npm test` and `npm run test:coverage` before deployment. Deploy to Amoy with
+`npm run deploy:amoy:v2` only after configuring a new dedicated deployer key and
+a `PLATFORM_ADMIN_ADDRESS` controlled by a Safe or dedicated admin wallet.
+
+Never reuse a key that has been pasted into chat, email, source control, shell
+history, or another untrusted location.
+
 ## Overview
 
 This directory contains the Solidity smart contracts that power the EYEKON platform:
