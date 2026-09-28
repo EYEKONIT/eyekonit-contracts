@@ -2,9 +2,11 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./AccessControl.sol";
 
-contract CredentialRegistryV2 is ReentrancyGuard {
+contract CredentialRegistryV2 is ReentrancyGuard, EIP712 {
     struct Attestation {
         bytes32 id;
         uint256 organizationId;
@@ -27,12 +29,16 @@ contract CredentialRegistryV2 is ReentrancyGuard {
     mapping(address => bytes32[]) private _issuerCredentials;
     mapping(uint256 => bytes32[]) private _organizationCredentials;
     uint256 private _issuanceNonce;
+    mapping(bytes32 => bool) public usedIssuanceVouchers;
+    bytes32 public constant ISSUANCE_VOUCHER_TYPEHASH = keccak256(
+        "IssuanceVoucher(uint256 organizationId,address issuer,address authorizedRecipient,bytes32 credentialHash,uint256 credentialTypeId,uint256 expiresAt,bool transferable,bytes32 nonce,uint256 deadline)"
+    );
 
     event CredentialIssued(bytes32 indexed attestationId, uint256 indexed organizationId, address indexed issuer, address recipient, bytes32 credentialHash, uint256 issuedAt, uint256 expiresAt);
     event CredentialRevoked(bytes32 indexed attestationId, address indexed revokedBy, string reason, uint256 revokedAt);
     event CredentialTransferred(bytes32 indexed attestationId, address indexed from, address indexed to);
 
-    constructor(address accessControlAddress) {
+    constructor(address accessControlAddress) EIP712("EYEKON Credential", "2") {
         require(accessControlAddress != address(0), "Invalid access control");
         accessControl = EyekonAccessControl(accessControlAddress);
     }
@@ -46,7 +52,7 @@ contract CredentialRegistryV2 is ReentrancyGuard {
         bool transferable
     ) external nonReentrant returns (bytes32) {
         require(accessControl.isOrganizationAdminOrOwner(organizationId, msg.sender), "Not an organization owner or admin");
-        return _issue(organizationId, recipient, credentialHash, credentialTypeId, expiresAt, transferable);
+        return _issue(organizationId, msg.sender, recipient, credentialHash, credentialTypeId, expiresAt, transferable);
     }
 
     function batchIssueCredentials(
@@ -61,12 +67,52 @@ contract CredentialRegistryV2 is ReentrancyGuard {
         require(recipients.length > 0 && recipients.length == credentialHashes.length, "Invalid batch");
         ids = new bytes32[](recipients.length);
         for (uint256 i; i < recipients.length; i++) {
-            ids[i] = _issue(organizationId, recipients[i], credentialHashes[i], credentialTypeId, expiresAt, transferable);
+            ids[i] = _issue(organizationId, msg.sender, recipients[i], credentialHashes[i], credentialTypeId, expiresAt, transferable);
         }
+    }
+
+    function claimCredentialWithVoucher(
+        uint256 organizationId,
+        address issuer,
+        address authorizedRecipient,
+        bytes32 credentialHash,
+        uint256 credentialTypeId,
+        uint256 expiresAt,
+        bool transferable,
+        bytes32 nonce,
+        uint256 deadline,
+        bytes calldata signature
+    ) external nonReentrant returns (bytes32) {
+        require(deadline >= block.timestamp, "Invitation expired");
+        require(
+            authorizedRecipient == address(0) || authorizedRecipient == msg.sender,
+            "Invitation is for another wallet"
+        );
+        require(
+            accessControl.isOrganizationAdminOrOwner(organizationId, issuer),
+            "Issuer is no longer authorized"
+        );
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+            ISSUANCE_VOUCHER_TYPEHASH,
+            organizationId,
+            issuer,
+            authorizedRecipient,
+            credentialHash,
+            credentialTypeId,
+            expiresAt,
+            transferable,
+            nonce,
+            deadline
+        )));
+        require(!usedIssuanceVouchers[digest], "Invitation already used");
+        require(ECDSA.recover(digest, signature) == issuer, "Invalid issuer signature");
+        usedIssuanceVouchers[digest] = true;
+        return _issue(organizationId, issuer, msg.sender, credentialHash, credentialTypeId, expiresAt, transferable);
     }
 
     function _issue(
         uint256 organizationId,
+        address issuer,
         address recipient,
         bytes32 credentialHash,
         uint256 credentialTypeId,
@@ -77,13 +123,13 @@ contract CredentialRegistryV2 is ReentrancyGuard {
         require(credentialHash != bytes32(0), "Invalid credential hash");
         require(expiresAt == 0 || expiresAt > block.timestamp, "Expiry must be in the future");
         attestationId = keccak256(abi.encode(
-            block.chainid, address(this), organizationId, msg.sender, recipient,
+            block.chainid, address(this), organizationId, issuer, recipient,
             credentialHash, credentialTypeId, ++_issuanceNonce
         ));
         attestations[attestationId] = Attestation({
             id: attestationId,
             organizationId: organizationId,
-            issuer: msg.sender,
+            issuer: issuer,
             recipient: recipient,
             credentialHash: credentialHash,
             credentialTypeId: credentialTypeId,
@@ -96,9 +142,9 @@ contract CredentialRegistryV2 is ReentrancyGuard {
         });
         attestationExists[attestationId] = true;
         _recipientCredentials[recipient].push(attestationId);
-        _issuerCredentials[msg.sender].push(attestationId);
+        _issuerCredentials[issuer].push(attestationId);
         _organizationCredentials[organizationId].push(attestationId);
-        emit CredentialIssued(attestationId, organizationId, msg.sender, recipient, credentialHash, block.timestamp, expiresAt);
+        emit CredentialIssued(attestationId, organizationId, issuer, recipient, credentialHash, block.timestamp, expiresAt);
     }
 
     function revokeCredential(bytes32 attestationId, string calldata reason) external nonReentrant {

@@ -64,7 +64,7 @@ async function main() {
     PaymentSplitter: await payment.getAddress(),
   };
   const deployment = {
-    version: 2,
+    version: "2.1",
     network: network.name,
     chainId: 80002,
     deployer: deployer.address,
@@ -73,7 +73,7 @@ async function main() {
     contracts: addresses,
   };
 
-  const outputPath = path.join(__dirname, "..", "deployments", "amoy-v2.json");
+  const outputPath = path.join(__dirname, "..", "deployments", "amoy-v2.1.json");
   fs.writeFileSync(outputPath, `${JSON.stringify(deployment, null, 2)}\n`, {
     flag: "wx",
   });

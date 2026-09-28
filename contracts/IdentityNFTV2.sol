@@ -38,7 +38,7 @@ contract IdentityNFTV2 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712 {
     }
 
     bytes32 public constant CLAIM_VOUCHER_TYPEHASH = keccak256(
-        "ClaimVoucher(uint256 identityId,address claimant,bytes32 nonce,uint256 deadline)"
+        "ClaimVoucher(uint256 identityId,address authorizedClaimant,bytes32 nonce,uint256 deadline)"
     );
 
     EyekonAccessControl public immutable accessControl;
@@ -149,6 +149,7 @@ contract IdentityNFTV2 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712 {
 
     function claimIdentity(
         uint256 identityId,
+        address authorizedClaimant,
         bytes32 nonce,
         uint256 deadline,
         bytes calldata creatorSignature
@@ -163,8 +164,12 @@ contract IdentityNFTV2 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712 {
 
         if (identity.claimPolicy == ClaimPolicy.InviteOnly) {
             require(deadline >= block.timestamp, "Invitation expired");
+            require(
+                authorizedClaimant == address(0) || authorizedClaimant == msg.sender,
+                "Invitation is for another wallet"
+            );
             bytes32 digest = _hashTypedDataV4(
-                keccak256(abi.encode(CLAIM_VOUCHER_TYPEHASH, identityId, msg.sender, nonce, deadline))
+                keccak256(abi.encode(CLAIM_VOUCHER_TYPEHASH, identityId, authorizedClaimant, nonce, deadline))
             );
             require(!usedClaimVouchers[digest], "Invitation already used");
             require(ECDSA.recover(digest, creatorSignature) == identity.creator, "Invalid invitation signature");

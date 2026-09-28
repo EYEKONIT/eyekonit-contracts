@@ -118,22 +118,62 @@ describe("EYEKON V2 user-owned flows", function () {
       {
         ClaimVoucher: [
           { name: "identityId", type: "uint256" },
-          { name: "claimant", type: "address" },
+          { name: "authorizedClaimant", type: "address" },
           { name: "nonce", type: "bytes32" },
           { name: "deadline", type: "uint256" },
         ],
       },
-      { identityId: id, claimant: claimant.address, nonce, deadline },
+      { identityId: id, authorizedClaimant: claimant.address, nonce, deadline },
     );
 
     await expect(
-      identity.connect(outsider).claimIdentity(id, nonce, deadline, signature),
-    ).to.be.revertedWith("Invalid invitation signature");
-    await expect(identity.connect(claimant).claimIdentity(id, nonce, deadline, signature))
+      identity.connect(outsider).claimIdentity(id, claimant.address, nonce, deadline, signature),
+    ).to.be.revertedWith("Invitation is for another wallet");
+    await expect(identity.connect(claimant).claimIdentity(id, claimant.address, nonce, deadline, signature))
       .to.emit(identity, "IdentityClaimed")
       .withArgs(id, claimant.address, 1, 0);
     await expect(
-      identity.connect(claimant).claimIdentity(id, nonce, deadline, signature),
+      identity.connect(claimant).claimIdentity(id, claimant.address, nonce, deadline, signature),
+    ).to.be.revertedWith("Invitation already used");
+  });
+
+  it("supports one-time creator-signed bearer invitations for email recipients", async function () {
+    const { owner, claimant, outsider, identity } = await deployFixture();
+    const id = await createIdentity(identity, owner, "Email Invite Identity", 0, {
+      policy: 1,
+    });
+    const network = await ethers.provider.getNetwork();
+    const deadline = (await ethers.provider.getBlock("latest"))!.timestamp + 3600;
+    const nonce = ethers.id("email-invitation-token");
+    const signature = await owner.signTypedData(
+      {
+        name: "EYEKON Identity",
+        version: "2",
+        chainId: network.chainId,
+        verifyingContract: await identity.getAddress(),
+      },
+      {
+        ClaimVoucher: [
+          { name: "identityId", type: "uint256" },
+          { name: "authorizedClaimant", type: "address" },
+          { name: "nonce", type: "bytes32" },
+          { name: "deadline", type: "uint256" },
+        ],
+      },
+      {
+        identityId: id,
+        authorizedClaimant: ethers.ZeroAddress,
+        nonce,
+        deadline,
+      },
+    );
+    await identity
+      .connect(claimant)
+      .claimIdentity(id, ethers.ZeroAddress, nonce, deadline, signature);
+    await expect(
+      identity
+        .connect(outsider)
+        .claimIdentity(id, ethers.ZeroAddress, nonce, deadline, signature),
     ).to.be.revertedWith("Invitation already used");
   });
 
@@ -143,9 +183,9 @@ describe("EYEKON V2 user-owned flows", function () {
     const privateId = await createIdentity(identity, owner, "Private Identity", 0, {
       policy: 2,
     });
-    await identity.connect(claimant).claimIdentity(publicId, ethers.ZeroHash, 0, "0x");
+    await identity.connect(claimant).claimIdentity(publicId, ethers.ZeroAddress, ethers.ZeroHash, 0, "0x");
     await expect(
-      identity.connect(claimant).claimIdentity(privateId, ethers.ZeroHash, 0, "0x"),
+      identity.connect(claimant).claimIdentity(privateId, ethers.ZeroAddress, ethers.ZeroHash, 0, "0x"),
     ).to.be.revertedWith("Identity is private");
   });
 
@@ -165,10 +205,10 @@ describe("EYEKON V2 user-owned flows", function () {
       timeline.connect(outsider).completeChapterByIdentity(1, first, claimant.address),
     ).to.be.revertedWith("Only identity contract");
     await expect(
-      identity.connect(claimant).claimIdentity(second, ethers.ZeroHash, 0, "0x"),
+      identity.connect(claimant).claimIdentity(second, ethers.ZeroAddress, ethers.ZeroHash, 0, "0x"),
     ).to.be.revertedWith("Previous identity required");
-    await identity.connect(claimant).claimIdentity(first, ethers.ZeroHash, 0, "0x");
-    await identity.connect(claimant).claimIdentity(second, ethers.ZeroHash, 0, "0x");
+    await identity.connect(claimant).claimIdentity(first, ethers.ZeroAddress, ethers.ZeroHash, 0, "0x");
+    await identity.connect(claimant).claimIdentity(second, ethers.ZeroAddress, ethers.ZeroHash, 0, "0x");
     const progress = await timeline.getUserProgress(1, claimant.address);
     expect(progress[1]).to.equal(2);
     expect(progress[2]).to.equal(true);
@@ -207,6 +247,76 @@ describe("EYEKON V2 user-owned flows", function () {
     expect((await credential.getAttestation(id)).isRevoked).to.equal(true);
   });
 
+  it("supports issuer-signed credential invitation vouchers", async function () {
+    const { admin, claimant, outsider, credential } = await deployFixture();
+    const network = await ethers.provider.getNetwork();
+    const deadline = (await ethers.provider.getBlock("latest"))!.timestamp + 3600;
+    const nonce = ethers.id("credential-invitation");
+    const credentialHash = ethers.id("invited-credential");
+    const domain = {
+      name: "EYEKON Credential",
+      version: "2",
+      chainId: network.chainId,
+      verifyingContract: await credential.getAddress(),
+    };
+    const types = {
+      IssuanceVoucher: [
+        { name: "organizationId", type: "uint256" },
+        { name: "issuer", type: "address" },
+        { name: "authorizedRecipient", type: "address" },
+        { name: "credentialHash", type: "bytes32" },
+        { name: "credentialTypeId", type: "uint256" },
+        { name: "expiresAt", type: "uint256" },
+        { name: "transferable", type: "bool" },
+        { name: "nonce", type: "bytes32" },
+        { name: "deadline", type: "uint256" },
+      ],
+    };
+    const value = {
+      organizationId: 1,
+      issuer: admin.address,
+      authorizedRecipient: claimant.address,
+      credentialHash,
+      credentialTypeId: 7,
+      expiresAt: 0,
+      transferable: false,
+      nonce,
+      deadline,
+    };
+    const signature = await admin.signTypedData(domain, types, value);
+    await expect(
+      credential
+        .connect(outsider)
+        .claimCredentialWithVoucher(
+          1,
+          admin.address,
+          claimant.address,
+          credentialHash,
+          7,
+          0,
+          false,
+          nonce,
+          deadline,
+          signature,
+        ),
+    ).to.be.revertedWith("Invitation is for another wallet");
+    await credential
+      .connect(claimant)
+      .claimCredentialWithVoucher(
+        1,
+        admin.address,
+        claimant.address,
+        credentialHash,
+        7,
+        0,
+        false,
+        nonce,
+        deadline,
+        signature,
+      );
+    expect(await credential.getRecipientCredentialCount(claimant.address)).to.equal(1);
+  });
+
   it("lets only the identity creator configure royalties and preserves every wei", async function () {
     const { owner, claimant, outsider, recipient, identity, payment } = await deployFixture();
     const price = 101n;
@@ -217,7 +327,7 @@ describe("EYEKON V2 user-owned flows", function () {
     await payment
       .connect(owner)
       .configureRoyalty(id, 500, [owner.address, recipient.address], [5000, 5000]);
-    await identity.connect(claimant).claimIdentity(id, ethers.ZeroHash, 0, "0x", { value: price });
+    await identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, "0x", { value: price });
     const first = await payment.getPendingWithdrawal(id, owner.address);
     const second = await payment.getPendingWithdrawal(id, recipient.address);
     expect(first + second).to.equal(price);
