@@ -190,12 +190,8 @@ contract IdentityNFTV2 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712 {
 
         tokenId = _mintIdentity(msg.sender, identityId);
         if (finalPrice > 0) {
-            if (address(paymentSplitter) != address(0) && paymentSplitter.isRoyaltyConfigured(identityId)) {
-                paymentSplitter.processPrimarySale{value: finalPrice}(identityId);
-            } else {
-                (bool paid, ) = payable(identity.creator).call{value: finalPrice}("");
-                require(paid, "Creator payment failed");
-            }
+            require(address(paymentSplitter) != address(0), "Payment splitter required");
+            paymentSplitter.processPrimarySale{value: finalPrice}(identityId);
         }
         if (address(timeline) != address(0) && identityToTimeline[identityId] != 0) {
             timeline.completeChapterByIdentity(identityToTimeline[identityId], identityId, msg.sender);

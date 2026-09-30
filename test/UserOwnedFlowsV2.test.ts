@@ -319,7 +319,7 @@ describe("EYEKON V2 user-owned flows", function () {
     expect(await credential.getRecipientCredentialCount(claimant.address)).to.equal(1);
   });
 
-  it("lets only the identity creator configure royalties and preserves every wei", async function () {
+  it("keeps secondary royalty recipients from redirecting primary sale revenue", async function () {
     const { owner, claimant, outsider, recipient, identity, payment } = await deployFixture();
     const price = 101n;
     const id = await createIdentity(identity, owner, "Paid Identity", 0, { price });
@@ -329,9 +329,122 @@ describe("EYEKON V2 user-owned flows", function () {
     await payment
       .connect(owner)
       .configureRoyalty(id, 500, [owner.address, recipient.address], [5000, 5000]);
-    await identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, "0x", { value: price });
+    const platform = await payment.PLATFORM_WALLET();
+    await expect(identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, "0x", { value: price }))
+      .to.changeEtherBalances([owner, platform], [81n, 20n]);
+    expect(await payment.getPendingWithdrawal(id, recipient.address)).to.equal(0);
+    expect(await payment.getPendingWithdrawal(id, owner.address)).to.equal(0);
+    // Secondary royalty withdrawals retain the existing exact-wei behavior.
+    await payment.connect(claimant).processSecondarySale(id, 2020n, { value: 101n });
     const first = await payment.getPendingWithdrawal(id, owner.address);
     const second = await payment.getPendingWithdrawal(id, recipient.address);
-    expect(first + second).to.equal(price);
+    expect(first + second).to.equal(101n);
   });
+
+  it("automatically pays 80/20 without any royalty configuration", async function () {
+    const { owner, claimant, identity, payment } = await deployFixture();
+    const price = ethers.parseEther('1');
+    const id = await createIdentity(identity, owner, 'Automatic Purchase', 0, { price });
+    expect(await payment.isRoyaltyConfigured(id)).to.equal(true);
+    expect(await payment.isSecondaryRoyaltyConfigured(id)).to.equal(false);
+    const platform = await payment.PLATFORM_WALLET();
+    const tx = identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x', { value: price });
+    await expect(tx).to.changeEtherBalances([owner, platform], [price * 8n / 10n, price / 5n]);
+    await expect(tx).to.emit(payment, 'PrimarySaleSettled').withArgs(id, owner.address, platform, price, price * 8n / 10n, price / 5n);
+    expect(await identity.balanceOfIdentity(claimant.address, id)).to.equal(1);
+    expect(await payment.totalEarnings(owner.address)).to.equal(price * 8n / 10n);
+    expect(await ethers.provider.getBalance(await payment.getAddress())).to.equal(0);
+  });
+
+  it("uses the organization identity creator as the payout owner", async function () {
+    const { admin, claimant, identity, payment } = await deployFixture();
+    const id = await createIdentity(identity, admin, 'Organization Purchase', 1, { price: 1000n });
+    await expect(identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x', { value: 1000n }))
+      .to.changeEtherBalances([admin, await payment.PLATFORM_WALLET()], [800n, 200n]);
+  });
+
+  it("splits the discounted evolution chapter price and refunds overpayment", async function () {
+    const { owner, claimant, identity, payment, timeline } = await deployFixture();
+    const previous = await createIdentity(identity, owner, 'First Chapter');
+    await timeline.connect(owner).createTimeline(1, 'Paid Evolution', 'Two chapters', 2, 25);
+    await timeline.connect(owner).addChapter(1, 1, previous, false);
+    await identity.connect(owner).linkIdentityToTimeline(previous, 1);
+    await identity.connect(claimant).claimIdentity(previous, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x');
+    await identity.connect(owner).createIdentity('Discount Chapter', 0, 'ipfs://chapter', 100, 1000n, true, previous, 25, 0);
+    const id = await identity.getTotalIdentities();
+    await timeline.connect(owner).addChapter(1, 2, id, true);
+    await identity.connect(owner).linkIdentityToTimeline(id, 1);
+    const platform = await payment.PLATFORM_WALLET();
+    await expect(identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x', { value: 1200n }))
+      .to.changeEtherBalances([owner, platform, claimant], [600n, 150n, -750n]);
+  });
+
+  it("never charges commission on a free claim and refunds accidental value", async function () {
+    const { owner, claimant, identity, payment } = await deployFixture();
+    const id = await createIdentity(identity, owner, 'Free Claim');
+    await expect(identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x', { value: 100n }))
+      .to.changeEtherBalances([owner, await payment.PLATFORM_WALLET(), claimant], [0n, 0n, 0n]);
+  });
+
+  it("rejects underpayment and direct splitter calls without minting", async function () {
+    const { owner, claimant, identity, payment } = await deployFixture();
+    const id = await createIdentity(identity, owner, 'Underpayment', 0, { price: 100n });
+    await expect(identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x', { value: 99n })).to.be.revertedWith('Insufficient payment');
+    await expect(payment.connect(claimant).processPrimarySale(id, { value: 100n })).to.be.revertedWith('Only identity contract');
+    expect(await identity.balanceOfIdentity(claimant.address, id)).to.equal(0);
+  });
+
+  it("applies commission to a paid creator-signed invitation", async function () {
+    const { owner, claimant, identity, payment } = await deployFixture();
+    const id = await createIdentity(identity, owner, 'Paid Invite', 0, { price: 100n, policy: 1 });
+    const nonce = ethers.id('paid-invite');
+    const deadline = (await ethers.provider.getBlock('latest'))!.timestamp + 3600;
+    const signature = await owner.signTypedData({ name: 'EYEKON Identity', version: '2', chainId: (await ethers.provider.getNetwork()).chainId, verifyingContract: await identity.getAddress() }, {
+      ClaimVoucher: [{ name: 'identityId', type: 'uint256' }, { name: 'authorizedClaimant', type: 'address' }, { name: 'nonce', type: 'bytes32' }, { name: 'deadline', type: 'uint256' }],
+    }, { identityId: id, authorizedClaimant: claimant.address, nonce, deadline });
+    await expect(identity.connect(claimant).claimIdentity(id, claimant.address, nonce, deadline, signature, { value: 100n }))
+      .to.changeEtherBalances([owner, await payment.PLATFORM_WALLET()], [80n, 20n]);
+  });
+
+  it("preserves every wei even for a one-wei price", async function () {
+    const { owner, claimant, identity, payment } = await deployFixture();
+    const id = await createIdentity(identity, owner, 'One Wei', 0, { price: 1n });
+    await expect(identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x', { value: 1n }))
+      .to.changeEtherBalances([owner, await payment.PLATFORM_WALLET()], [1n, 0n]);
+  });
+
+  it("preserves existing secondary royalty settings when replacing the splitter", async function () {
+    const { owner, claimant, recipient, identity, payment } = await deployFixture();
+    const id = await createIdentity(identity, owner, 'Preserved Royalty', 0, { price: 100n });
+    await payment.connect(owner).configureRoyalty(id, 500, [owner.address, recipient.address], [5000, 5000]);
+    const replacement = await (await ethers.getContractFactory('PaymentSplitterV2')).deploy(await identity.getAddress());
+    expect(await replacement.legacySplitter()).to.equal(await payment.getAddress());
+    await identity.setPaymentSplitter(await replacement.getAddress());
+    expect(await replacement.isSecondaryRoyaltyConfigured(id)).to.equal(true);
+    expect(await replacement.getRoyaltyPercentage(id)).to.equal(500);
+    const [recipients, amounts] = await replacement.getRoyaltyInfo(id, 2020n);
+    expect(recipients).to.deep.equal([owner.address, recipient.address]);
+    expect(amounts).to.deep.equal([50n, 51n]);
+    await replacement.connect(claimant).processSecondarySale(id, 2020n, { value: 101n });
+    expect(await replacement.getTotalPendingWithdrawals(owner.address, [id])).to.equal(50n);
+    expect(await replacement.getPendingWithdrawal(id, recipient.address)).to.equal(51n);
+    await expect(identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x', { value: 100n }))
+      .to.changeEtherBalances([owner, await replacement.PLATFORM_WALLET()], [80n, 20n]);
+  });
+
+  for (const target of ['owner', 'platform'] as const) {
+    it(`reverts the whole claim if the ${target} rejects payment`, async function () {
+      const { owner, claimant, identity, payment } = await deployFixture();
+      const id = await createIdentity(identity, owner, `Reject ${target}`, 0, { price: 100n });
+      const address = target === 'owner' ? owner.address : await payment.PLATFORM_WALLET();
+      await ethers.provider.send('hardhat_setCode', [address, '0x60006000fd']);
+      try {
+        await expect(identity.connect(claimant).claimIdentity(id, ethers.ZeroAddress, ethers.ZeroHash, 0, '0x', { value: 100n }))
+          .to.be.revertedWith(target === 'owner' ? 'Owner payment failed' : 'Platform payment failed');
+        expect(await identity.balanceOfIdentity(claimant.address, id)).to.equal(0);
+        expect((await identity.getIdentity(id)).supply).to.equal(0);
+        expect(await payment.totalEarnings(owner.address)).to.equal(0);
+      } finally { await ethers.provider.send('hardhat_setCode', [address, '0x']); }
+    });
+  }
 });

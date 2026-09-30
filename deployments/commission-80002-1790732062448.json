@@ -1,0 +1,22 @@
+{
+  "version": "commission-80-20",
+  "chainId": 80002,
+  "identityAddress": "0xE0BE5161c82EB5bef9FEf537B8195C3747fad873",
+  "identityOwner": "0xE6dfCDfec1C431d77c046D3D2a3CEdcE27407541",
+  "previousSplitter": "0x43a0d8f9c8BBbc8C8419883e169d0dc6F6771D07",
+  "paymentSplitter": "0x2894Aa62dC362edd59D3Da77914d794A0554b92b",
+  "deploymentHash": "0x4c54144ecfb9cd537711858e497c1021f07ef329bbef84fa3e81bc21b7916d74",
+  "platformWallet": "0x497574eE15579f9F6836D472EAC236F85Be4478D",
+  "platformFeeBps": 2000,
+  "activation": {
+    "to": "0xE0BE5161c82EB5bef9FEf537B8195C3747fad873",
+    "data": "0x6b29b79f0000000000000000000000002894aa62dc362edd59d3da77914d794a0554b92b",
+    "value": "0"
+  },
+  "createdAt": "2026-09-30T01:34:22.448Z",
+  "activationHash": "0xadbdc8746b84b1202ec7569994d9a8ce8faf24d57148849fb9e997c37d47c074",
+  "activationBlock": 48909728,
+  "activatedAt": "2026-09-30T01:35:46.614Z",
+  "bytecodeVerified": true,
+  "existingIdentityCount": "9"
+}
