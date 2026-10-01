@@ -33,6 +33,18 @@ async function main() {
   console.log("Deployer:", deployer.address);
   console.log("Platform admin:", platformAdmin);
 
+  const startingBalance = await ethers.provider.getBalance(deployer.address);
+  const deploymentBudget = ethers.parseEther(process.env.MAX_DEPLOYMENT_COST_POL || '10');
+  const feeData = await ethers.provider.getFeeData();
+  const maximumFee = feeData.maxFeePerGas ?? feeData.gasPrice;
+  if (!maximumFee) throw new Error('RPC did not return a deployment gas price');
+  const estimatedMaximumCost = 15_100_000n * maximumFee;
+  if (estimatedMaximumCost > deploymentBudget || estimatedMaximumCost > startingBalance) {
+    throw new Error(`Current gas exceeds the available deployment budget; maximum estimate ${ethers.formatEther(estimatedMaximumCost)} POL. No transactions were sent.`);
+  }
+  console.log('Maximum deployment fee estimate (including gas buffer):', ethers.formatEther(estimatedMaximumCost), 'POL');
+  console.log('Starting balance:', ethers.formatEther(startingBalance), 'POL');
+
   const journalPath = `${outputPath}.partial.json`;
   const journal: any = fs.existsSync(journalPath)
     ? JSON.parse(fs.readFileSync(journalPath, "utf8"))
@@ -51,6 +63,7 @@ async function main() {
       }
       return factory.attach(previous.address);
     }
+    if (startingBalance - await ethers.provider.getBalance(deployer.address) >= deploymentBudget) throw new Error('Deployment spending budget reached');
     const contract = await factory.deploy(...args);
     journal.contracts[name] = { address: await contract.getAddress(), transactionHash: contract.deploymentTransaction()!.hash, bytecodeHash, constructorArguments: args };
     saveJournal();
@@ -120,6 +133,8 @@ async function main() {
     timestamp: new Date().toISOString(),
     contracts: addresses,
     deploymentTransactions: journal.contracts,
+    startingBalancePOL: ethers.formatEther(startingBalance),
+    endingBalancePOL: ethers.formatEther(await ethers.provider.getBalance(deployer.address)),
   };
 
   fs.writeFileSync(outputPath, `${JSON.stringify(deployment, null, 2)}\n`, {

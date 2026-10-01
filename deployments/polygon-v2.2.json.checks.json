@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-10-01T21:24:25.443Z",
+  "chainId": 137,
+  "checks": {
+    "EyekonAccessControl": {
+      "address": "0x95EB5Cc874a84B966Caed1e39d4056fd2fEbd0ae",
+      "block": 94789009,
+      "runtimeCodeHash": "0x002cbe043dc34ca3f36c0220406137e59302f5707747aa1a232c78f297c64bab"
+    },
+    "IdentityNFTV2": {
+      "address": "0x58942b4cCdC317608C4Fb6A76F9104b8f209247b",
+      "block": 94789014,
+      "runtimeCodeHash": "0xf6c63cf460fcf9899b611e7cf4aeee8d3d3717b23d27b8aa8584595d0913b739"
+    },
+    "TimelineV2": {
+      "address": "0x8aBfa40aA501Dd6138b4b1513c5be7637690AE8A",
+      "block": 94789018,
+      "runtimeCodeHash": "0x458fd8c655dbd24c0ecff63f6f8f6754e42f6cf06915140cf62cf8c990e0e063"
+    },
+    "CredentialRegistryV2": {
+      "address": "0xf9B0BCCCCB2C6f61B84835f6fAfA10FfF03126e4",
+      "block": 94789023,
+      "runtimeCodeHash": "0x191d85ac535f7a2524805e76cd009626096b37d70083d49d1db288f93c761634"
+    },
+    "PaymentSplitterV2": {
+      "address": "0xfc44fCb1C7c4A0Cca5Ee76da6B2d06a019fc4474",
+      "block": 94789028,
+      "runtimeCodeHash": "0x44a179325993aca2d503dfa5a9145decd08eacc754cd46d6ac1948236ea5306e"
+    }
+  },
+  "owner": "0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D",
+  "treasury": "0x497574eE15579f9F6836D472EAC236F85Be4478D",
+  "platformFeeBps": 2000,
+  "balancePOL": "11.064933663947204412",
+  "result": "passed"
+}

@@ -1,0 +1,65 @@
+{
+  "version": "2.2",
+  "network": "polygon",
+  "chainId": 137,
+  "nativeCurrency": "POL",
+  "platformTreasury": "0x497574ee15579f9f6836d472eac236f85be4478d",
+  "platformFeeBps": 2000,
+  "deployer": "0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D",
+  "platformAdmin": "0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D",
+  "timestamp": "2026-10-01T21:04:54.889Z",
+  "contracts": {
+    "AccessControl": "0x95EB5Cc874a84B966Caed1e39d4056fd2fEbd0ae",
+    "IdentityNFT": "0x58942b4cCdC317608C4Fb6A76F9104b8f209247b",
+    "Timeline": "0x8aBfa40aA501Dd6138b4b1513c5be7637690AE8A",
+    "CredentialRegistry": "0xf9B0BCCCCB2C6f61B84835f6fAfA10FfF03126e4",
+    "PaymentSplitter": "0xfc44fCb1C7c4A0Cca5Ee76da6B2d06a019fc4474"
+  },
+  "deploymentTransactions": {
+    "EyekonAccessControl": {
+      "address": "0x95EB5Cc874a84B966Caed1e39d4056fd2fEbd0ae",
+      "transactionHash": "0xf4d725df1e0dfba3a0032ed23b4d021e03f9976aced38a98ad53be44d4648726",
+      "bytecodeHash": "0x66a50152e9f2b30a2d4980dd75dd6c073911493534ec4cb7d314a650fbe54e89",
+      "constructorArguments": [],
+      "deploymentBlock": 94789009
+    },
+    "IdentityNFTV2": {
+      "address": "0x58942b4cCdC317608C4Fb6A76F9104b8f209247b",
+      "transactionHash": "0xc53a75d1e984d4c1f119fa2cc07559e3c10826f8adf466b2f8e615fa59858c35",
+      "bytecodeHash": "0xc78ca56972041354cc191964b8538dbc361d43dabc0b9b2cb380e4c4988ca8a5",
+      "constructorArguments": [
+        "0x95EB5Cc874a84B966Caed1e39d4056fd2fEbd0ae"
+      ],
+      "deploymentBlock": 94789014
+    },
+    "TimelineV2": {
+      "address": "0x8aBfa40aA501Dd6138b4b1513c5be7637690AE8A",
+      "transactionHash": "0xc97a41fcd62273c50e9b96f09664303533aeb2d31de5759c9eeda38b620ade8f",
+      "bytecodeHash": "0x98dd0973ecfe6a485935359b73be1fe16de4aa60131dd8fb058a324561c9aaf1",
+      "constructorArguments": [
+        "0x95EB5Cc874a84B966Caed1e39d4056fd2fEbd0ae"
+      ],
+      "deploymentBlock": 94789018
+    },
+    "CredentialRegistryV2": {
+      "address": "0xf9B0BCCCCB2C6f61B84835f6fAfA10FfF03126e4",
+      "transactionHash": "0xaf320755beba32a0865c61141fa7f8797c88a60be945b69cd76cdb86ae1ab9ea",
+      "bytecodeHash": "0xe03e483593e383ac81a9aa1f448dee6e58f773d5e4e3facc999ee366c0701d1b",
+      "constructorArguments": [
+        "0x95EB5Cc874a84B966Caed1e39d4056fd2fEbd0ae"
+      ],
+      "deploymentBlock": 94789023
+    },
+    "PaymentSplitterV2": {
+      "address": "0xfc44fCb1C7c4A0Cca5Ee76da6B2d06a019fc4474",
+      "transactionHash": "0xabebfbc46582ec3a444c2c419a3f0e9e0841112d4471cd8e05cc963d90395cc8",
+      "bytecodeHash": "0x74c138638406435b6a0d0aff967e0dfce98bf9a9d071a3807461b96ffbf66234",
+      "constructorArguments": [
+        "0x58942b4cCdC317608C4Fb6A76F9104b8f209247b"
+      ],
+      "deploymentBlock": 94789028
+    }
+  },
+  "startingBalancePOL": "14.75",
+  "endingBalancePOL": "11.064933663947204412"
+}

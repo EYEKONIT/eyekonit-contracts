@@ -7,6 +7,8 @@
     "test": "hardhat test",
     "deploy:amoy:v2": "hardhat run scripts/deploy-v2.ts --network amoy",
     "deploy:polygon:v2": "hardhat run scripts/deploy-v2.ts --network polygon",
+    "check:polygon": "hardhat run scripts/check-release.ts --network polygon",
+    "verify:polygon": "hardhat run scripts/verify-release.ts --network polygon",
     "test:coverage": "hardhat coverage",
     "test:gas": "REPORT_GAS=true hardhat test",
     "deploy:mumbai": "hardhat run scripts/deploy.ts --network amoy",
