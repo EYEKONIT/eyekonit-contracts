@@ -12,10 +12,17 @@ async function main() {
   if (chainId === 137 && process.env.CONFIRM_POLYGON_MAINNET !== "137") {
     throw new Error("Set CONFIRM_POLYGON_MAINNET=137 only for an approved real-POL deployment");
   }
-  const outputPath = path.join(__dirname, "..", "deployments", chainId === 137 ? "polygon-v2.2.json" : "amoy-v2.2.json");
+  const ownerSuffix = (process.env.EXPECTED_DEPLOYER_ADDRESS || '').slice(2, 10).toLowerCase();
+  if (!/^[a-f0-9]{8}$/.test(ownerSuffix)) throw new Error("Set EXPECTED_DEPLOYER_ADDRESS before deployment");
+  const outputPath = path.join(__dirname, "..", "deployments", chainId === 137 ? "polygon-v2.2.json" : `amoy-v2.2-owner-${ownerSuffix}.json`);
   if (fs.existsSync(outputPath)) throw new Error(`Deployment manifest already exists: ${outputPath}. Review it before deploying another system.`);
 
   const [deployer] = await ethers.getSigners();
+  if (!deployer) throw new Error("Configure a secure deployment signer before deployment");
+  const expectedDeployer = process.env.EXPECTED_DEPLOYER_ADDRESS;
+  if (!expectedDeployer || !ethers.isAddress(expectedDeployer)) throw new Error("EXPECTED_DEPLOYER_ADDRESS must identify the approved deployment wallet");
+  if (deployer.address.toLowerCase() !== expectedDeployer.toLowerCase()) throw new Error("Deployment signer does not match EXPECTED_DEPLOYER_ADDRESS; no transactions were sent");
+  if (deployer.address.toLowerCase() === "0xe6dfcdfec1c431d77c046d3d2a3cedce27407541") throw new Error("The compromised legacy wallet is permanently blocked from deployment");
   const platformAdmin = process.env.PLATFORM_ADMIN_ADDRESS;
   if (!platformAdmin || !ethers.isAddress(platformAdmin)) {
     throw new Error("PLATFORM_ADMIN_ADDRESS must be a valid dedicated admin or Safe address");

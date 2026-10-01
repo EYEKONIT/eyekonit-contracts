@@ -7,7 +7,8 @@ Primary paid claims send 20% to that treasury and 80% to the identity creator.
 ## Deployment
 
 - Network: Polygon PoS mainnet, chain 137; native gas currency POL.
-- Use the existing authorized deployer/owner wallet. Keep its private key outside Git.
+- Approved deployer/owner: 0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D. Set EXPECTED_DEPLOYER_ADDRESS to this address. Keep its private key outside Git and chat.
+- The old 0xE6dfCDfec1C431d77c046D3D2a3CEdcE27407541 wallet is compromised and blocked from deployment.
 - Set POLYGON_RPC_URL to a mainnet RPC and PLATFORM_ADMIN_ADDRESS to the approved owner.
 - Run `npm test` before signing deployment transactions.
 - Set CONFIRM_POLYGON_MAINNET=137 only for an approved deployment.
