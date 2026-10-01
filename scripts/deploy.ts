@@ -3,6 +3,9 @@ import * as fs from "fs";
 import * as path from "path";
 
 async function main() {
+  if (Number(await ethers.provider.send("eth_chainId", [])) === 137) {
+    throw new Error("V1 Polygon mainnet deployment is disabled; use npm run deploy:polygon:v2.");
+  }
   console.log("🚀 Deploying EYEKON contracts...\n");
 
   // Get the deployer account

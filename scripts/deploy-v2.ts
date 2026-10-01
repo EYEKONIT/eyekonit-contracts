@@ -3,9 +3,17 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 async function main() {
-  if (network.config.chainId !== 80002) {
-    throw new Error("The V2 launch deployment is currently restricted to Polygon Amoy (80002)");
+  const chainId = Number(network.config.chainId);
+  if (![80002, 137].includes(chainId)) {
+    throw new Error("V2 deployment supports only Polygon Amoy (80002) and Polygon PoS mainnet (137)");
   }
+  const actualChainId = Number(await ethers.provider.send("eth_chainId", []));
+  if (actualChainId !== chainId) throw new Error("RPC chain does not match the selected deployment network");
+  if (chainId === 137 && process.env.CONFIRM_POLYGON_MAINNET !== "137") {
+    throw new Error("Set CONFIRM_POLYGON_MAINNET=137 only for an approved real-POL deployment");
+  }
+  const outputPath = path.join(__dirname, "..", "deployments", chainId === 137 ? "polygon-v2.2.json" : "amoy-v2.2.json");
+  if (fs.existsSync(outputPath)) throw new Error(`Deployment manifest already exists: ${outputPath}. Review it before deploying another system.`);
 
   const [deployer] = await ethers.getSigners();
   const platformAdmin = process.env.PLATFORM_ADMIN_ADDRESS;
@@ -18,42 +26,72 @@ async function main() {
   console.log("Deployer:", deployer.address);
   console.log("Platform admin:", platformAdmin);
 
-  const access = await (await ethers.getContractFactory("EyekonAccessControl")).deploy();
+  const journalPath = `${outputPath}.partial.json`;
+  const journal: any = fs.existsSync(journalPath)
+    ? JSON.parse(fs.readFileSync(journalPath, "utf8"))
+    : { chainId, deployer: deployer.address, contracts: {} };
+  if (journal.chainId !== chainId || journal.deployer.toLowerCase() !== deployer.address.toLowerCase()) throw new Error("Partial deployment belongs to another chain or deployer");
+  const saveJournal = () => fs.writeFileSync(journalPath, `${JSON.stringify(journal, null, 2)}\n`);
+  async function deployContract(name: string, args: string[] = []): Promise<any> {
+    const factory = await ethers.getContractFactory(name);
+    const bytecodeHash = ethers.keccak256(factory.bytecode);
+    const previous = journal.contracts[name];
+    if (previous) {
+      if (previous.bytecodeHash !== bytecodeHash) throw new Error(`Compiled ${name} changed during a partial deployment`);
+      if (await ethers.provider.getCode(previous.address) === "0x") {
+        const receipt = await ethers.provider.waitForTransaction(previous.transactionHash, chainId === 137 ? 3 : 1);
+        if (!receipt || receipt.status !== 1) throw new Error(`Review failed deployment of ${name}`);
+      }
+      return factory.attach(previous.address);
+    }
+    const contract = await factory.deploy(...args);
+    journal.contracts[name] = { address: await contract.getAddress(), transactionHash: contract.deploymentTransaction()!.hash, bytecodeHash, constructorArguments: args };
+    saveJournal();
+    const receipt = await contract.deploymentTransaction()!.wait(chainId === 137 ? 3 : 1);
+    if (!receipt || receipt.status !== 1) throw new Error(`${name} deployment failed`);
+    journal.contracts[name].deploymentBlock = receipt.blockNumber;
+    saveJournal();
+    return contract;
+  }
+
+  const access = await deployContract("EyekonAccessControl");
   await access.waitForDeployment();
 
-  const identity = await (await ethers.getContractFactory("IdentityNFTV2")).deploy(
-    await access.getAddress(),
-  );
+  const identity = await deployContract("IdentityNFTV2", [await access.getAddress()]);
   await identity.waitForDeployment();
 
-  const timeline = await (await ethers.getContractFactory("TimelineV2")).deploy(
-    await access.getAddress(),
-  );
+  const timeline = await deployContract("TimelineV2", [await access.getAddress()]);
   await timeline.waitForDeployment();
 
-  const credential = await (
-    await ethers.getContractFactory("CredentialRegistryV2")
-  ).deploy(await access.getAddress());
+  const credential = await deployContract("CredentialRegistryV2", [await access.getAddress()]);
   await credential.waitForDeployment();
 
-  const payment = await (await ethers.getContractFactory("PaymentSplitterV2")).deploy(
-    await identity.getAddress(),
-  );
+  const payment = await deployContract("PaymentSplitterV2", [await identity.getAddress()]);
   await payment.waitForDeployment();
 
-  await (await identity.setTimelineContract(await timeline.getAddress())).wait();
-  await (await identity.setPaymentSplitter(await payment.getAddress())).wait();
-  await (await timeline.setIdentityContract(await identity.getAddress())).wait();
+  if ((await identity.timeline()).toLowerCase() !== (await timeline.getAddress()).toLowerCase()) await (await identity.setTimelineContract(await timeline.getAddress())).wait();
+  if ((await identity.paymentSplitter()).toLowerCase() !== (await payment.getAddress()).toLowerCase()) await (await identity.setPaymentSplitter(await payment.getAddress())).wait();
+  if ((await timeline.identityContract()).toLowerCase() !== (await identity.getAddress()).toLowerCase()) await (await timeline.setIdentityContract(await identity.getAddress())).wait();
+
+  const treasury = "0x497574ee15579f9f6836d472eac236f85be4478d";
+  if ((await payment.PLATFORM_WALLET()).toLowerCase() !== treasury || await payment.PLATFORM_FEE_BPS() !== 2000n) {
+    throw new Error("Deployed payment splitter does not implement the approved 20% treasury fee");
+  }
+  if ((await identity.paymentSplitter()).toLowerCase() !== (await payment.getAddress()).toLowerCase() ||
+      (await identity.timeline()).toLowerCase() !== (await timeline.getAddress()).toLowerCase() ||
+      (await timeline.identityContract()).toLowerCase() !== (await identity.getAddress()).toLowerCase()) {
+    throw new Error("Contract wiring verification failed");
+  }
 
   if (platformAdmin.toLowerCase() !== deployer.address.toLowerCase()) {
     const defaultAdminRole = await access.DEFAULT_ADMIN_ROLE();
     const adminRole = await access.ADMIN_ROLE();
-    await (await access.grantRole(defaultAdminRole, platformAdmin)).wait();
-    await (await access.grantRole(adminRole, platformAdmin)).wait();
-    await (await identity.transferOwnership(platformAdmin)).wait();
-    await (await timeline.transferOwnership(platformAdmin)).wait();
-    await (await access.renounceRole(adminRole, deployer.address)).wait();
-    await (await access.renounceRole(defaultAdminRole, deployer.address)).wait();
+    if (!await access.hasRole(defaultAdminRole, platformAdmin)) await (await access.grantRole(defaultAdminRole, platformAdmin)).wait();
+    if (!await access.hasRole(adminRole, platformAdmin)) await (await access.grantRole(adminRole, platformAdmin)).wait();
+    if ((await identity.owner()).toLowerCase() !== platformAdmin.toLowerCase()) await (await identity.transferOwnership(platformAdmin)).wait();
+    if ((await timeline.owner()).toLowerCase() !== platformAdmin.toLowerCase()) await (await timeline.transferOwnership(platformAdmin)).wait();
+    if (await access.hasRole(adminRole, deployer.address)) await (await access.renounceRole(adminRole, deployer.address)).wait();
+    if (await access.hasRole(defaultAdminRole, deployer.address)) await (await access.renounceRole(defaultAdminRole, deployer.address)).wait();
   }
 
   const addresses = {
@@ -66,14 +104,17 @@ async function main() {
   const deployment = {
     version: "2.2",
     network: network.name,
-    chainId: 80002,
+    chainId,
+    nativeCurrency: "POL",
+    platformTreasury: treasury,
+    platformFeeBps: 2000,
     deployer: deployer.address,
     platformAdmin,
     timestamp: new Date().toISOString(),
     contracts: addresses,
+    deploymentTransactions: journal.contracts,
   };
 
-  const outputPath = path.join(__dirname, "..", "deployments", "amoy-v2.2.json");
   fs.writeFileSync(outputPath, `${JSON.stringify(deployment, null, 2)}\n`, {
     flag: "wx",
   });

@@ -3,6 +3,9 @@ import * as fs from "fs";
 import * as path from "path";
 import * as readline from "readline";
 
+// This legacy script deploys V1 contracts and must never be used for the V2 platform.
+throw new Error("Legacy V1 mainnet deployment is disabled. Use npm run deploy:polygon:v2 with the approved Polygon V2 release.");
+
 /**
  * Deploy EYEKON contracts to Polygon Mainnet
  * 
