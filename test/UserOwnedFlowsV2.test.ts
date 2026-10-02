@@ -249,6 +249,32 @@ describe("EYEKON V2 user-owned flows", function () {
     expect((await credential.getAttestation(id)).isRevoked).to.equal(true);
   });
 
+  it("issues a credential batch atomically with a separate proof for each recipient", async function () {
+    const { owner, admin, member, outsider, credential } = await deployFixture();
+    const hashes = [ethers.id('batch-member'), ethers.id('batch-admin')];
+    await expect(credential.connect(outsider).batchIssueCredentials(1, [member.address, admin.address], hashes, 7, 0, false))
+      .to.be.revertedWith('Not an organization owner or admin');
+    const receipt = await (await credential.connect(owner).batchIssueCredentials(1, [member.address, admin.address], hashes, 7, 0, false)).wait();
+    const logs = receipt!.logs.flatMap((log: any) => {
+      try { const parsed = credential.interface.parseLog(log); return parsed?.name === 'CredentialIssued' ? [parsed.args] : []; } catch { return []; }
+    });
+    expect(logs.length).to.equal(2);
+    expect(logs[0].recipient).to.equal(member.address);
+    expect(logs[1].recipient).to.equal(admin.address);
+    expect(logs[0].credentialHash).to.equal(hashes[0]);
+    expect(logs[0].attestationId).not.to.equal(logs[1].attestationId);
+    expect(await credential.getRecipientCredentialCount(member.address)).to.equal(1);
+    expect(await credential.getIssuerCredentialCount(owner.address)).to.equal(2);
+  });
+
+  it("rolls back every credential if any batch recipient is invalid", async function () {
+    const { owner, member, credential } = await deployFixture();
+    await expect(credential.connect(owner).batchIssueCredentials(1, [member.address, ethers.ZeroAddress], [ethers.id('valid'), ethers.id('invalid')], 7, 0, false))
+      .to.be.revertedWith('Invalid recipient');
+    expect(await credential.getRecipientCredentialCount(member.address)).to.equal(0);
+    expect(await credential.getIssuerCredentialCount(owner.address)).to.equal(0);
+  });
+
   it("supports issuer-signed credential invitation vouchers", async function () {
     const { admin, claimant, outsider, credential } = await deployFixture();
     const network = await ethers.provider.getNetwork();
