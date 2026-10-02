@@ -7,6 +7,7 @@ import "./TimelineV2.sol";
 
 interface ITimelineV3IdentityBalances {
     function balanceOfIdentity(address account, uint256 identityId) external view returns (uint256);
+    function timeline() external view returns (address);
 }
 
 contract TimelineV3 is Ownable {
@@ -39,7 +40,11 @@ contract TimelineV3 is Ownable {
     address public identityContract;
     TimelineV2 public immutable legacyTimeline;
     uint256 public immutable legacyTimelineCount;
+    bool public migrationComplete;
+    mapping(uint256 => bytes32) public legacySnapshotHash;
+    mapping(uint256 => mapping(address => bool)) public legacyProgressImported;
     event LegacyTimelineImported(uint256 indexed timelineId, address indexed creator);
+    event LegacyProgressImported(uint256 indexed timelineId, address indexed user);
     uint256 internal _timelineIdCounter;
     mapping(uint256 => TimelineData) public timelines;
     mapping(bytes32 => bool) public timelineNameUsed;
@@ -63,13 +68,14 @@ contract TimelineV3 is Ownable {
         legacyTimeline = TimelineV2(legacyAddress);
         require(address(legacyTimeline.accessControl()) == accessControlAddress, "Legacy access mismatch");
         legacyTimelineCount = legacyTimeline.getTotalTimelines();
+        migrationComplete = legacyTimelineCount == 0;
     }
 
 
     // Pre-launch import preserves IDs and authority. Existing progress must never be silently erased.
     function importLegacyTimeline(uint256 id) external onlyOwner {
+        require(!migrationComplete, "Migration already complete");
         require(id == _timelineIdCounter + 1 && id <= legacyTimelineCount, "Import sequential legacy IDs");
-        require(legacyTimeline.timelineHolderCount(id) == 0, "Existing progress requires migration");
         TimelineV2.TimelineData memory original = legacyTimeline.getTimeline(id);
         require(original.id == id && original.totalChapters <= 100, "Unsupported legacy timeline");
         bytes32 nameHash = _normalizedNameHash(original.name);
@@ -83,8 +89,47 @@ contract TimelineV3 is Ownable {
             identityToChapter[id][chapter.identityId] = chapterNumber;
         }
         _timelineIdCounter = id;
+        legacySnapshotHash[id] = _legacySnapshot(id);
         emit LegacyTimelineImported(id, original.creator);
     }
+
+    function importLegacyProgress(uint256 id, address user) external onlyOwner {
+        require(!migrationComplete && id > 0 && id <= _timelineIdCounter, "Invalid migration timeline");
+        require(!legacyProgressImported[id][user], "Progress already imported");
+        require(ITimelineV3IdentityBalances(identityContract).timeline() == address(this), "Freeze legacy claims first");
+        (uint256[] memory completed, uint256 count, bool complete) = legacyTimeline.getUserProgress(id, user);
+        require(count > 0 && count == completed.length, "No valid legacy progress");
+        (, uint256 lastCompletedAt,) = legacyTimeline.userProgress(id, user);
+        for(uint256 i; i < completed.length; i++) {
+            uint256 chapter = completed[i];
+            require(chapter > 0 && chapter <= timelines[id].totalChapters && !hasCompletedChapter[id][user][chapter], "Invalid legacy chapter");
+            hasCompletedChapter[id][user][chapter] = true;
+            _completedChapters[id][user].push(chapter);
+        }
+        userProgress[id][user] = UserProgress(count, lastCompletedAt, complete);
+        timelineHolderCount[id]++;
+        legacyProgressImported[id][user] = true;
+        emit LegacyProgressImported(id,user);
+    }
+
+    function finalizeMigration() external onlyOwner {
+        require(!migrationComplete, "Migration already complete");
+        require(_timelineIdCounter == legacyTimelineCount && legacyTimeline.getTotalTimelines() == legacyTimelineCount, "Legacy timeline count changed");
+        require(identityContract == legacyTimeline.identityContract() && ITimelineV3IdentityBalances(identityContract).timeline() == address(this), "Freeze legacy claims first");
+        for(uint256 id = 1; id <= legacyTimelineCount; id++) {
+            require(legacySnapshotHash[id] == _legacySnapshot(id), "Legacy timeline changed");
+            require(timelineHolderCount[id] == legacyTimeline.timelineHolderCount(id), "Legacy progress not fully imported");
+        }
+        migrationComplete = true;
+    }
+
+    function _legacySnapshot(uint256 id) private view returns (bytes32 hash) {
+        TimelineV2.TimelineData memory original = legacyTimeline.getTimeline(id);
+        hash = keccak256(abi.encode(original));
+        for(uint256 chapter = 1; chapter <= original.totalChapters; chapter++) hash = keccak256(abi.encode(hash,legacyTimeline.getChapter(id,chapter)));
+    }
+
+    modifier ready() { require(migrationComplete, "Migration incomplete"); _; }
 
     modifier onlyIdentityContract() {
         require(msg.sender == identityContract, "Only identity contract");
@@ -102,7 +147,7 @@ contract TimelineV3 is Ownable {
         string calldata description,
         uint256 totalChapters,
         uint8 holderDiscount
-    ) external returns (uint256 timelineId) {
+    ) external ready returns (uint256 timelineId) {
         require(_timelineIdCounter >= legacyTimelineCount, "Import legacy timelines first");
         require(
             accessControl.isOrganizationAdminOrOwner(organizationId, msg.sender),
@@ -130,7 +175,7 @@ contract TimelineV3 is Ownable {
         emit TimelineCreated(timelineId, organizationId, msg.sender, name, totalChapters, holderDiscount, block.timestamp);
     }
 
-    function addChapter(uint256 timelineId, uint256 chapterNumber, uint256 identityId, bool requiresPrevious) external {
+    function addChapter(uint256 timelineId, uint256 chapterNumber, uint256 identityId, bool requiresPrevious) external ready {
         TimelineData storage timeline = timelines[timelineId];
         require(timeline.creator == msg.sender, "Only creator can add chapters");
         require(timeline.isActive, "Timeline inactive");
@@ -145,7 +190,7 @@ contract TimelineV3 is Ownable {
         emit ChapterAdded(timelineId, chapterNumber, identityId, requiresPrevious, block.timestamp);
     }
 
-    function completeChapterByIdentity(uint256 timelineId, uint256 identityId, address user) external onlyIdentityContract {
+    function completeChapterByIdentity(uint256 timelineId, uint256 identityId, address user) external onlyIdentityContract ready {
         require(timelines[timelineId].isActive, "Timeline inactive");
         uint256 chapterNumber = identityToChapter[timelineId][identityId];
         require(chapterNumber != 0, "Identity is not a chapter");
@@ -172,7 +217,7 @@ contract TimelineV3 is Ownable {
         emit ChapterCompleted(timelineId, chapterNumber, user, block.timestamp);
     }
 
-    function updateTimeline(uint256 timelineId, string calldata name, string calldata description, uint8 holderDiscount, bool active) external {
+    function updateTimeline(uint256 timelineId, string calldata name, string calldata description, uint8 holderDiscount, bool active) external ready {
         TimelineData storage timeline = timelines[timelineId];
         require(timeline.creator == msg.sender, "Only creator can update timeline");
         require(bytes(name).length > 0, "Name cannot be empty");

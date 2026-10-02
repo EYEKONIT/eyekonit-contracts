@@ -15,10 +15,11 @@ immediately before deployment: the predicted address depends on the owner nonce,
 and any new timelines or claims change migration preconditions.
 
 The plan deploys TimelineV3, configures the existing NFT address, imports legacy
-timelines sequentially, and updates IdentityNFT's timeline reference. Imports
-preserve original timeline IDs, creators, metadata, timestamps and chapter links.
-They explicitly reject timelines with completion history; do not bypass that
-check or silently reset existing holdings/progress.
+timelines sequentially, routes NFT callbacks to the replacement to freeze claims,
+imports all legacy user progress, then finalizes the migration. Imports preserve
+timeline IDs, creators, metadata, timestamps, chapter links and completion history.
+Finalization rejects changed metadata, missing users or altered timeline counts.
+Do not bypass those checks or silently reset existing holdings/progress.
 
 Activation requires:
 
@@ -28,16 +29,19 @@ Activation requires:
 2. Enable the existing blockchain maintenance guard and recheck all legacy
    state. Keep the website, authentication and auction configuration unchanged.
 3. Sign the reviewed owner transactions on Polygon 137. Check each receipt,
-   deployed bytecode/constructor and migrated metadata/chapters before updating
-   IdentityNFT's reference. Confirm its owner and platform treasury are unchanged.
+   deployed bytecode/constructor and migrated metadata/chapters before routing
+   IdentityNFT's reference. Claims remain disabled by the migration guard until
+   all legacy progress is imported and finalized. Confirm the existing owner and
+   platform treasury are unchanged. A failure here requires completing or rolling
+   back the reviewed cutover; never disable website maintenance prematurely.
 4. Update Railway TIMELINE_ADDRESS and Vercel VITE_TIMELINE_ADDRESS together.
    Keep every other mainnet address and the original sync start block. Wait for
    both production deployments and their network handshake to agree.
 5. Verify the new timeline sync cursor and receipts, then remove maintenance.
    Exercise all live timeline and evolution cases in the acceptance ledger.
 
-The October 3 read-only plan found one legacy timeline, zero timeline holders,
-15.68 POL in the approved owner wallet, and a conservative four-transaction gas
-budget of 2.22 POL. These values are a snapshot, not a fixed quote. The owner is
+The latest October 3 read-only plan found two legacy timelines, zero timeline
+holders, 15.68 POL in the approved owner wallet, and a conservative six-transaction
+gas budget of 2.54 POL. These values are a snapshot, not a fixed quote. The owner is
 0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D. No additional funding is needed based
 on that snapshot.
