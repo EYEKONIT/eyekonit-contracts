@@ -33,10 +33,10 @@ describe('Timeline edition and transfer edge cases', function () {
     const {firstHolder,timeline,claim}=await fixture();await claim(firstHolder,1);await claim(firstHolder,1);
     expect((await timeline.getUserProgress(1,firstHolder.address))[1]).to.equal(1);expect(await timeline.timelineHolderCount(1)).to.equal(1);
   });
-  it('blocks new claims and new chapters after deactivation',async()=>{
-    const {firstHolder,nft,timeline,claim}=await fixture(); await timeline.updateTimeline(1,'QA journey','Archived',25,false);
-    await expect(claim(firstHolder,1)).to.be.revertedWith('Timeline inactive');expect(await nft.getTotalTokens()).to.equal(0);
-    await expect(timeline.addChapter(1,1,99,false)).to.be.revertedWith('Timeline inactive');
+  it('published timeline metadata and active state cannot be edited, while claims remain available',async()=>{
+    const {firstHolder,timeline,claim}=await fixture(); const before=await timeline.getTimeline(1);
+    await expect(timeline.updateTimeline(1,'Changed','Changed',0,false)).to.be.revertedWith('Published timeline information is immutable');
+    expect(await timeline.getTimeline(1)).to.deep.equal(before);await claim(firstHolder,1);
   });
   it('rejects unsupported chapter plans and first-chapter dependencies',async()=>{
     const {timeline}=await fixture();await expect(timeline.createTimeline(1,'Too many','QA',101,0)).to.be.revertedWith('Invalid chapter plan');

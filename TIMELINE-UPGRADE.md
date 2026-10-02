@@ -4,8 +4,8 @@ Status: prepared and tested locally; not deployed or activated.
 
 TimelineV3 preserves the TimelineV2 ABI used by the site. It fixes incoming NFT
 holders being rejected by the history-only previous-chapter requirement, makes
-repeat edition claims idempotent for progress, and enforces archive and chapter
-plan/dependency limits. IdentityNFT and its 80/20 payment splitter remain intact.
+repeat edition claims idempotent for progress, prevents published timeline edits,
+and enforces chapter plan/dependency limits. IdentityNFT and its 80/20 payment splitter remain intact.
 The deployed TimelineV2 source is preserved unchanged for release verification.
 
 `npx hardhat run scripts/prepare-timeline-upgrade.ts --network polygon` performs
@@ -40,8 +40,14 @@ Activation requires:
 5. Verify the new timeline sync cursor and receipts, then remove maintenance.
    Exercise all live timeline and evolution cases in the acceptance ledger.
 
-The latest October 3 read-only plan found two legacy timelines, zero timeline
+An earlier October 3 read-only plan found two legacy timelines, zero timeline
 holders, 15.68 POL in the approved owner wallet, and a conservative six-transaction
-gas budget of 2.54 POL. These values are a snapshot, not a fixed quote. The owner is
+gas budget of 2.54 POL. Live testing has since created a timeline holder, so that
+plan is stale and progress imports must be regenerated. The owner is
 0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D. No additional funding is needed based
-on that snapshot.
+on that snapshot; recalculate before signing.
+
+The platform API and UI now reject edits to published evolution records and
+their content. The existing IdentityNFTV2 still exposes metadata, price and
+supply setters to its authorized creator. TimelineV3 alone cannot enforce
+immutability of those NFT fields; that separate protocol change remains open.

@@ -217,23 +217,8 @@ contract TimelineV3 is Ownable {
         emit ChapterCompleted(timelineId, chapterNumber, user, block.timestamp);
     }
 
-    function updateTimeline(uint256 timelineId, string calldata name, string calldata description, uint8 holderDiscount, bool active) external ready {
-        TimelineData storage timeline = timelines[timelineId];
-        require(timeline.creator == msg.sender, "Only creator can update timeline");
-        require(bytes(name).length > 0, "Name cannot be empty");
-        require(holderDiscount <= 100, "Discount cannot exceed 100%");
-        bytes32 oldHash = _normalizedNameHash(timeline.name);
-        bytes32 newHash = _normalizedNameHash(name);
-        if (newHash != oldHash) {
-            require(!timelineNameUsed[newHash], "Timeline name already exists");
-            timelineNameUsed[oldHash] = false;
-            timelineNameUsed[newHash] = true;
-        }
-        timeline.name = name;
-        timeline.description = description;
-        timeline.holderDiscount = holderDiscount;
-        timeline.isActive = active;
-        emit TimelineUpdated(timelineId, name, description, holderDiscount, active);
+    function updateTimeline(uint256, string calldata, string calldata, uint8, bool) external pure {
+        revert("Published timeline information is immutable");
     }
 
     function getTimeline(uint256 timelineId) external view returns (TimelineData memory) { return timelines[timelineId]; }
