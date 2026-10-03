@@ -25,7 +25,10 @@ async function main(){
  const nftDeployment=await new ethers.ContractFactory(nftArtifact.abi,nftArtifact.bytecode).getDeployTransaction(contracts.AccessControl,contracts.IdentityNFT);
  const timelineDeployment=await new ethers.ContractFactory(timelineArtifact.abi,timelineArtifact.bytecode).getDeployTransaction(contracts.AccessControl,contracts.Timeline);
  const nftGas=await ethers.provider.estimateGas({...nftDeployment,from:owner}),timelineGas=await ethers.provider.estimateGas({...timelineDeployment,from:owner});
- const fees=await ethers.provider.getFeeData(),fee=fees.maxFeePerGas||fees.gasPrice;assert.ok(fee);
+ const fees=await ethers.provider.getFeeData(),recommendedFee=fees.maxFeePerGas||fees.gasPrice;assert.ok(recommendedFee);
+ // Bound a short-term fee change without silently raising the reviewed cap
+ // during deployment. Funding must cover the entire buffered plan.
+ const fee=recommendedFee*11n/10n;
  const budget=(nftGas+timelineGas)*12n/10n+2500000n+BigInt(identityCount)*400000n+BigInt(timelineCount)*800000n+BigInt(progress.length)*600000n+1800000n;
  const balance=await ethers.provider.getBalance(owner);
  console.log(JSON.stringify({check:'owner_funding',gasUnits:budget.toString(),maxFeeGwei:ethers.formatUnits(fee,9),requiredPOL:ethers.formatEther(budget*fee),balancePOL:ethers.formatEther(balance)}));
