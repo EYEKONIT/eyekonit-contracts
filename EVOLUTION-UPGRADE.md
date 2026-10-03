@@ -1,7 +1,9 @@
 # Polygon evolution release
 
-Status: replacement contracts deployed on Polygon 137; holder imports and final
-activation are in progress. Do not describe the live acceptance work as complete.
+Status: replacement contracts activated on Polygon 137. All six holder imports
+and both migration finalizations are complete; Railway and Vercel use the new
+addresses with maintenance disabled. The live feature acceptance matrix is still
+in progress. Activation does not mean every product case is production ready.
 
 - IdentityNFTV3: `0xdfEb1cbAAf0FDf4b909A5A12F03Db03b5F18eF15`
 - PaymentSplitterV2: `0x19715398AA552a345C1800d1f9dA0C133508A5d7`
@@ -40,16 +42,24 @@ platform maintenance. It logs confirmed transaction hashes after every step and
 can resume a partially prepared deployment. It stops before holder transfers and
 finalization; no website address cutover is performed by that script.
 
-Before activation, finish and verify:
+Completed activation evidence:
 
-1. The holder transfer and recovery UI/relay path, including interruption recovery.
-2. Original NFT escrow and replacement ownership for every token.
-3. Both migration finalizations and preservation of metadata and progress.
-4. Historical sale receipts, payouts, ownership records and legacy splitter funds.
-5. Matching Railway/Vercel addresses and protocol version, followed by deployment
-   handshake checks before removing maintenance.
-6. Fresh creator signatures for any unredeemed invitations from the old NFT domain.
-7. Live public/private, free/paid, discount, invitation, transfer and content cases
+- All six original NFTs are escrowed and replacements retain the same token IDs,
+  owners and metadata. An original recovery and reimport round trip passed.
+- NFT finalization: `0x7f7cf7e1ebdca737bf263c1702b296c09589f26d3304ff3b7eb58ef2babf2961`.
+- Timeline finalization: `0xc5dae8021a785ab901ea635a321ccf71835356377ba36ccdfd116f2ceac0a286`.
+- The live API handshake on October 3 reports Polygon 137, these replacement
+  addresses and maintenance false. Both members retain one timeline in their
+  collection; member 9 holds two chapters and member 10 holds three.
+- The database baseline still matches six holdings and thirteen confirmed ledger
+  records, with only independently verified edition ordinal corrections.
+
+Remaining release acceptance:
+
+1. Reload recovery while an import transaction is pending or its outcome is unknown.
+2. Explorer source verification for the replacement contracts.
+3. Fresh creator signatures for any unredeemed invitations from the old NFT domain.
+4. Live personal/organization, public/private, free/paid, discount, invitation, transfer and content cases
    across members, creators and the read-only admin timeline panel.
 
 The approved owner is `0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D`.
