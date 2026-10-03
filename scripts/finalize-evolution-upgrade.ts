@@ -22,8 +22,11 @@ async function main(){
  assert.ok(await ethers.provider.getBalance(plan.owner)>estimates.reduce((sum,value)=>sum+value,0n)*12n/10n*cap,'Owner funding does not cover both finalizations');
  state.finalizations ||= [];
  for(const [index,contract] of [nft,timeline].entries()) {
-   if(complete[index]) continue;
    const label=index===0?'Finalize verified NFT ownership':'Finalize verified timeline progress';
+   if(complete[index]) {
+     if(state.finalizationPending?.label===label){const receipt=await ethers.provider.getTransactionReceipt(state.finalizationPending.hash);assert.equal(receipt?.status,1);state.finalizations.push({label,hash:receipt!.hash,blockNumber:receipt!.blockNumber});delete state.finalizationPending;fs.writeFileSync(statePath,json(state)+'\n');}
+     continue;
+   }
    let hash:string;
    if(state.finalizationPending){assert.equal(state.finalizationPending.label,label);hash=state.finalizationPending.hash;}
    else {const tx=await contract.finalizeMigration(gas);hash=tx.hash;state.finalizationPending={label,hash};fs.writeFileSync(statePath,json(state)+'\n');}
