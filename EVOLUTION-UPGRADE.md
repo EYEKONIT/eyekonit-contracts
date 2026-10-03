@@ -53,13 +53,20 @@ Completed activation evidence:
   collection; member 9 holds two chapters and member 10 holds three.
 - The database baseline still matches six holdings and thirteen confirmed ledger
   records, with only independently verified edition ordinal corrections.
+- IdentityNFTV3, TimelineV4 and PaymentSplitterV2 source code is verified on
+  PolygonScan.
+- New personal public/private timelines (IDs 3 and 4) and an organization-private
+  timeline (ID 5) were created through the live website and matched against their
+  canonical receipts, creator, organization scope, chapter plan and discount.
+- Eleven read-only mainnet calls verified immutable evolution definitions and
+  timelines, creator/scope/dependency guards and sold-out rejection. These are
+  contract simulations, not substitutes for remaining live member flows.
 
 Remaining release acceptance:
 
 1. Reload recovery while an import transaction is pending or its outcome is unknown.
-2. Explorer source verification for the replacement contracts.
-3. Fresh creator signatures for any unredeemed invitations from the old NFT domain.
-4. Live personal/organization, public/private, free/paid, discount, invitation, transfer and content cases
+2. Fresh creator signatures for any unredeemed invitations from the old NFT domain.
+3. Live personal/organization, public/private, free/paid, discount, invitation, transfer and content cases
    across members, creators and the read-only admin timeline panel.
 
 The approved owner is `0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D`.
