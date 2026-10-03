@@ -1,6 +1,7 @@
 import {artifacts,ethers} from 'hardhat';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {assertFeeCap} from './evolution-fees';
 const json=(value:unknown)=>JSON.stringify(value,(_key,item)=>typeof item==='bigint'?item.toString():item,2);
 async function main(){
  assert.equal(process.env.EXECUTE_EVOLUTION_FINALIZATION,'yes','Explicit finalization flag required');
@@ -15,7 +16,7 @@ async function main(){
  for(const original of plan.timelines){assert.deepEqual(JSON.parse(json(Array.from(await timeline.getTimeline(original.id)))),original.fields);for(let chapter=1;chapter<=original.chapters.length;chapter++)assert.deepEqual(JSON.parse(json(Array.from(await timeline.getChapter(original.id,chapter)))),original.chapters[chapter-1]);}
  for(const original of plan.progress){const [completed,count,complete]=await timeline.getUserProgress(original.id,original.user);assert.deepEqual(completed.map(String),original.completed);assert.equal(count.toString(),original.count);assert.equal(complete,original.isComplete);}
  const complete=[await nft.migrationComplete(),await timeline.migrationComplete()];
- const fees=await ethers.provider.getFeeData(),cap=BigInt(plan.maxFeePerGasWei);assert.ok((fees.maxFeePerGas||fees.gasPrice||0n)<=cap,'Current fees exceed the reviewed cap');const gas={maxFeePerGas:cap,maxPriorityFeePerGas:fees.maxPriorityFeePerGas||30000000000n};
+ const cap=BigInt(plan.maxFeePerGasWei),priority=BigInt(plan.maxPriorityFeePerGasWei);assertFeeCap((await ethers.provider.getBlock('latest'))?.baseFeePerGas,priority,cap);const gas={maxFeePerGas:cap,maxPriorityFeePerGas:priority};
  // Simulate BOTH irreversible operations before submitting either.
  const estimates:bigint[]=[];for(const [index,contract] of [nft,timeline].entries())if(!complete[index]) {await contract.finalizeMigration.staticCall();estimates.push(await contract.finalizeMigration.estimateGas());}
  assert.ok(await ethers.provider.getBalance(plan.owner)>estimates.reduce((sum,value)=>sum+value,0n)*12n/10n*cap,'Owner funding does not cover both finalizations');

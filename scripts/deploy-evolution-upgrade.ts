@@ -1,6 +1,7 @@
 import {artifacts,ethers} from 'hardhat';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import {assertFeeCap} from './evolution-fees';
 const json=(value:unknown)=>JSON.stringify(value,(_key,item)=>typeof item==='bigint'?item.toString():item,2);
 async function main(){
  assert.equal(process.env.EXECUTE_EVOLUTION_UPGRADE,'yes','Explicit execution flag required');
@@ -17,13 +18,13 @@ async function main(){
  assert.equal(Number(await oldNFT.getTotalIdentities()),plan.identityCount);assert.equal(Number(await oldNFT.getTotalTokens()),plan.tokenCount);assert.equal(Number(await oldTimeline.getTotalTimelines()),plan.timelineCount);
  for(const definition of plan.definitions)assert.equal(JSON.stringify((await oldNFT.getIdentity(definition.id)).toArray(),(_key,item)=>typeof item==='bigint'?item.toString():item),JSON.stringify(definition.fields),'Legacy definition changed; stop and review');
  const balance=await ethers.provider.getBalance(plan.owner);if(state.steps.length===0)assert.ok(balance>ethers.parseEther(plan.ownerGasBudgetPOL),'Owner balance no longer covers the reviewed gas budget');
- const fees=await ethers.provider.getFeeData(),cap=BigInt(plan.maxFeePerGasWei);assert.ok((fees.maxFeePerGas||fees.gasPrice||0n)<=cap,'Gas fee exceeds the reviewed cap; regenerate the plan');
- const gas={maxFeePerGas:cap,maxPriorityFeePerGas:fees.maxPriorityFeePerGas || 30000000000n};assert.ok(gas.maxPriorityFeePerGas<=cap);
+ const cap=BigInt(plan.maxFeePerGasWei),priority=BigInt(plan.maxPriorityFeePerGasWei);assertFeeCap((await ethers.provider.getBlock('latest'))?.baseFeePerGas,priority,cap);
+ const gas={maxFeePerGas:cap,maxPriorityFeePerGas:priority};
  async function step(label:string,send:()=>Promise<any>){
   const prior=state.steps.find((entry:any)=>entry.label===label);if(prior){assert.equal((await ethers.provider.getTransactionReceipt(prior.hash))?.status,1);return prior;}
   let hash:string;
   if(state.pending) {assert.equal(state.pending.label,label,'Resolve the recorded pending step before continuing');hash=state.pending.hash;}
-  else {const transaction=await send();hash=transaction.hash;state.pending={label,hash};persist();console.log(JSON.stringify({label,hash,status:'submitted'}));}
+  else {assertFeeCap((await ethers.provider.getBlock('latest'))?.baseFeePerGas,priority,cap);const transaction=await send();hash=transaction.hash;state.pending={label,hash};persist();console.log(JSON.stringify({label,hash,status:'submitted'}));}
   const receipt=await ethers.provider.waitForTransaction(hash,1,120000);assert.ok(receipt,'Recorded transaction is still pending; resume using the same hash');assert.equal(receipt.status,1,'Recorded transaction failed; stop and review before retrying');
   const entry={label,hash:receipt.hash,blockNumber:receipt.blockNumber,address:receipt.contractAddress,gasUsed:receipt.gasUsed.toString(),costPOL:ethers.formatEther(receipt.gasUsed*receipt.gasPrice)};state.steps.push(entry);delete state.pending;persist();console.log(JSON.stringify(entry));return entry;
  }
