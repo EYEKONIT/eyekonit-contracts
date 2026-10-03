@@ -24,9 +24,10 @@ describe('Timeline edition and transfer edge cases', function () {
     const {firstHolder,incomingHolder,nft,timeline,claim}=await fixture();
     await claim(firstHolder,1); await nft.connect(firstHolder).transferFrom(firstHolder.address,incomingHolder.address,1);
     expect((await timeline.getUserProgress(1,incomingHolder.address))[1]).to.equal(0);
-    await claim(incomingHolder,2);
+    await expect(claim(incomingHolder,2)).to.emit(timeline,'TimelineCompleted');
     expect(await nft.balanceOfIdentity(incomingHolder.address,2)).to.equal(1);
     expect((await timeline.getUserProgress(1,incomingHolder.address))[0]).to.deep.equal([2n]);
+    expect((await timeline.getUserProgress(1,incomingHolder.address))[2]).to.equal(true);
     await expect(claim(firstHolder,2)).to.be.revertedWith('Previous identity required');
   });
   it('permits another edition without counting the same chapter twice',async()=>{

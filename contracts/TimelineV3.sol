@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./AccessControl.sol";
 import "./TimelineV2.sol";
+import "./IdentityNFTV2.sol";
 
 interface ITimelineV3IdentityBalances {
     function balanceOfIdentity(address account, uint256 identityId) external view returns (uint256);
@@ -96,7 +97,7 @@ contract TimelineV3 is Ownable {
     function importLegacyProgress(uint256 id, address user) external onlyOwner {
         require(!migrationComplete && id > 0 && id <= _timelineIdCounter, "Invalid migration timeline");
         require(!legacyProgressImported[id][user], "Progress already imported");
-        require(ITimelineV3IdentityBalances(identityContract).timeline() == address(this), "Freeze legacy claims first");
+        require(ITimelineV3IdentityBalances(legacyTimeline.identityContract()).timeline() == address(this) && ITimelineV3IdentityBalances(identityContract).timeline() == address(this), "Freeze legacy claims first");
         (uint256[] memory completed, uint256 count, bool complete) = legacyTimeline.getUserProgress(id, user);
         require(count > 0 && count == completed.length, "No valid legacy progress");
         (, uint256 lastCompletedAt,) = legacyTimeline.userProgress(id, user);
@@ -115,7 +116,7 @@ contract TimelineV3 is Ownable {
     function finalizeMigration() external onlyOwner {
         require(!migrationComplete, "Migration already complete");
         require(_timelineIdCounter == legacyTimelineCount && legacyTimeline.getTotalTimelines() == legacyTimelineCount, "Legacy timeline count changed");
-        require(identityContract == legacyTimeline.identityContract() && ITimelineV3IdentityBalances(identityContract).timeline() == address(this), "Freeze legacy claims first");
+        require(ITimelineV3IdentityBalances(legacyTimeline.identityContract()).timeline() == address(this) && ITimelineV3IdentityBalances(identityContract).timeline() == address(this), "Freeze legacy claims first");
         for(uint256 id = 1; id <= legacyTimelineCount; id++) {
             require(legacySnapshotHash[id] == _legacySnapshot(id), "Legacy timeline changed");
             require(timelineHolderCount[id] == legacyTimeline.timelineHolderCount(id), "Legacy progress not fully imported");
@@ -185,6 +186,10 @@ contract TimelineV3 is Ownable {
         require(identityToChapter[timelineId][identityId] == 0, "Identity already linked");
         require(!requiresPrevious || chapterNumber > 1, "First chapter cannot require previous");
         if (requiresPrevious) require(timelineChapters[timelineId][chapterNumber - 1].identityId != 0, "Previous chapter missing");
+        IdentityNFTV2.Identity memory identity = IdentityNFTV2(payable(identityContract)).getIdentity(identityId);
+        require(identity.id == identityId && identity.creator == msg.sender && identity.organizationId == timeline.organizationId, "Chapter creator or organization mismatch");
+        require(identity.requiredPreviousId == (requiresPrevious ? timelineChapters[timelineId][chapterNumber-1].identityId : 0), "Chapter dependency mismatch");
+        require(IdentityNFTV2(payable(identityContract)).identityToTimeline(identityId) == 0, "Identity already linked to a timeline");
         timelineChapters[timelineId][chapterNumber] = ChapterData(chapterNumber, identityId, requiresPrevious, block.timestamp);
         identityToChapter[timelineId][identityId] = chapterNumber;
         emit ChapterAdded(timelineId, chapterNumber, identityId, requiresPrevious, block.timestamp);
@@ -210,7 +215,14 @@ contract TimelineV3 is Ownable {
         _completedChapters[timelineId][user].push(chapterNumber);
         progress.completedCount++;
         progress.lastCompletedAt = block.timestamp;
-        if (progress.completedCount == timelines[timelineId].totalChapters) {
+        // A transferred prerequisite gives genuine ownership without inventing
+        // a historical claim. Completing the journey follows current holdings.
+        bool ownsAll = true;
+        for (uint256 number = 1; number <= timelines[timelineId].totalChapters; number++) {
+            uint256 chapterIdentityId = timelineChapters[timelineId][number].identityId;
+            if (chapterIdentityId == 0 || ITimelineV3IdentityBalances(identityContract).balanceOfIdentity(user, chapterIdentityId) == 0) { ownsAll = false; break; }
+        }
+        if (ownsAll && !progress.isComplete) {
             progress.isComplete = true;
             emit TimelineCompleted(timelineId, user, block.timestamp);
         }
