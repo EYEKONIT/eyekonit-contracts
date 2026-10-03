@@ -2,6 +2,7 @@ import {artifacts,ethers} from 'hardhat';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {assertFeeCap} from './evolution-fees';
+import {waitForEvolutionReceipt} from './evolution-receipt';
 const json=(value:unknown)=>JSON.stringify(value,(_key,item)=>typeof item==='bigint'?item.toString():item,2);
 async function main(){
  assert.equal(process.env.EXECUTE_EVOLUTION_FINALIZATION,'yes','Explicit finalization flag required');
@@ -30,7 +31,7 @@ async function main(){
    let hash:string;
    if(state.finalizationPending){assert.equal(state.finalizationPending.label,label);hash=state.finalizationPending.hash;}
    else {const tx=await contract.finalizeMigration(gas);hash=tx.hash;state.finalizationPending={label,hash};fs.writeFileSync(statePath,json(state)+'\n');}
-   const receipt=await ethers.provider.waitForTransaction(hash,1,120000);assert.equal(receipt?.status,1,'Keep the recorded hash and resolve finalization before continuing');state.finalizations.push({label,hash,blockNumber:receipt!.blockNumber});delete state.finalizationPending;fs.writeFileSync(statePath,json(state)+'\n');console.log(JSON.stringify({label,hash,blockNumber:receipt!.blockNumber}));
+   const receipt=await waitForEvolutionReceipt(ethers.provider,hash);assert.equal(receipt.status,1,'Keep the recorded hash and resolve finalization before continuing');state.finalizations.push({label,hash,blockNumber:receipt.blockNumber});delete state.finalizationPending;fs.writeFileSync(statePath,json(state)+'\n');console.log(JSON.stringify({label,hash,blockNumber:receipt.blockNumber}));
  }
  assert.equal(await nft.migrationComplete(),true);assert.equal(await timeline.migrationComplete(),true);state.status='finalized_awaiting_website_cutover';fs.writeFileSync(statePath,json(state)+'\n');
  console.log(JSON.stringify({status:state.status,contracts:state.contracts,legacyPaymentSplitter:plan.legacy.PaymentSplitter,identityProtocolVersion:3}));

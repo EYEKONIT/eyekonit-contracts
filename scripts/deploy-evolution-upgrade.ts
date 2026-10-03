@@ -2,6 +2,7 @@ import {artifacts,ethers} from 'hardhat';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {assertFeeCap} from './evolution-fees';
+import {waitForEvolutionReceipt} from './evolution-receipt';
 const json=(value:unknown)=>JSON.stringify(value,(_key,item)=>typeof item==='bigint'?item.toString():item,2);
 async function main(){
  assert.equal(process.env.EXECUTE_EVOLUTION_UPGRADE,'yes','Explicit execution flag required');
@@ -25,7 +26,7 @@ async function main(){
   let hash:string;
   if(state.pending) {assert.equal(state.pending.label,label,'Resolve the recorded pending step before continuing');hash=state.pending.hash;}
   else {assertFeeCap((await ethers.provider.getBlock('latest'))?.baseFeePerGas,priority,cap);const transaction=await send();hash=transaction.hash;state.pending={label,hash};persist();console.log(JSON.stringify({label,hash,status:'submitted'}));}
-  const receipt=await ethers.provider.waitForTransaction(hash,1,120000);assert.ok(receipt,'Recorded transaction is still pending; resume using the same hash');assert.equal(receipt.status,1,'Recorded transaction failed; stop and review before retrying');
+  const receipt=await waitForEvolutionReceipt(ethers.provider,hash);assert.equal(receipt.status,1,'Recorded transaction failed; stop and review before retrying');
   const entry={label,hash:receipt.hash,blockNumber:receipt.blockNumber,address:receipt.contractAddress,gasUsed:receipt.gasUsed.toString(),costPOL:ethers.formatEther(receipt.gasUsed*receipt.gasPrice)};state.steps.push(entry);delete state.pending;persist();console.log(JSON.stringify(entry));return entry;
  }
  async function deploy(name:string,label:string,args:string[]){const prior=state.steps.find((entry:any)=>entry.label===label);if(prior){assert.equal((await ethers.provider.getTransactionReceipt(prior.hash))?.status,1);return ethers.getContractAt(name,prior.address,owner);}if(state.pending?.label===label){const entry=await step(label,async()=>{throw new Error('A recorded deployment must never be resent');});return ethers.getContractAt(name,entry.address,owner);}const factory=await ethers.getContractFactory(name,owner);const entry=await step(label,async()=>{const contract=await factory.deploy(...args,gas);return contract.deploymentTransaction();});return ethers.getContractAt(name,entry.address,owner);}
