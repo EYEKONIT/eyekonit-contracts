@@ -1,6 +1,19 @@
 # Polygon evolution release
 
-Status: contract changes tested locally; replacement contracts have not been deployed or activated.
+Status: replacement contracts deployed on Polygon 137; holder imports and final
+activation are in progress. Do not describe the live acceptance work as complete.
+
+- IdentityNFTV3: `0xdfEb1cbAAf0FDf4b909A5A12F03Db03b5F18eF15`
+- PaymentSplitterV2: `0x19715398AA552a345C1800d1f9dA0C133508A5d7`
+- TimelineV4: `0xb50Ff5ADa4eCD813607232881EA6f23De55E6e97`
+
+TimelineV4 adds personal journeys with organization ID zero while retaining
+organization authorization and creator-only chapter attachment. The earlier
+staged TimelineV3 at `0x08C96b14d6794E066f7fF469a5cB93caf3301f74` is superseded.
+The original NFT import/recovery round trip was exercised through the live UI.
+All six holdings and thirteen confirmed ledger records were compared with the
+pre-upgrade baseline. Two edition ordinals were corrected against their original
+mint events; ownership and historical payment amounts were preserved.
 
 The release adds creator-signed, wallet-bound private evolution claims, freezes
 published evolution definitions and timeline information, validates chapter
