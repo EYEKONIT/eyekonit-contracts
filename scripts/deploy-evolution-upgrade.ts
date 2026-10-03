@@ -18,14 +18,21 @@ async function main(){
  if(state.steps.length===0 && !state.pending)assert.equal(await ethers.provider.getTransactionCount(plan.owner,'pending'),plan.nonce,'Owner nonce changed; regenerate the unsigned plan');
  assert.equal(Number(await oldNFT.getTotalIdentities()),plan.identityCount);assert.equal(Number(await oldNFT.getTotalTokens()),plan.tokenCount);assert.equal(Number(await oldTimeline.getTotalTimelines()),plan.timelineCount);
  for(const definition of plan.definitions)assert.equal(JSON.stringify((await oldNFT.getIdentity(definition.id)).toArray(),(_key,item)=>typeof item==='bigint'?item.toString():item),JSON.stringify(definition.fields),'Legacy definition changed; stop and review');
- const balance=await ethers.provider.getBalance(plan.owner);if(state.steps.length===0)assert.ok(balance>ethers.parseEther(plan.ownerGasBudgetPOL),'Owner balance no longer covers the reviewed gas budget');
+ const balance=await ethers.provider.getBalance(plan.owner);if(state.steps.length===0 && !state.pending)assert.ok(balance>ethers.parseEther(plan.ownerGasBudgetPOL),'Owner balance no longer covers the reviewed gas budget');
  const cap=BigInt(plan.maxFeePerGasWei),priority=BigInt(plan.maxPriorityFeePerGasWei);assertFeeCap((await ethers.provider.getBlock('latest'))?.baseFeePerGas,priority,cap);
  const gas={maxFeePerGas:cap,maxPriorityFeePerGas:priority};
  async function step(label:string,send:()=>Promise<any>){
   const prior=state.steps.find((entry:any)=>entry.label===label);if(prior){assert.equal((await ethers.provider.getTransactionReceipt(prior.hash))?.status,1);return prior;}
   let hash:string;
   if(state.pending) {assert.equal(state.pending.label,label,'Resolve the recorded pending step before continuing');hash=state.pending.hash;}
-  else {assertFeeCap((await ethers.provider.getBlock('latest'))?.baseFeePerGas,priority,cap);const transaction=await send();hash=transaction.hash;state.pending={label,hash};persist();console.log(JSON.stringify({label,hash,status:'submitted'}));}
+  else {
+    assertFeeCap((await ethers.provider.getBlock('latest'))?.baseFeePerGas,priority,cap);
+    // A resumed deployment has already paid for recorded steps. Protect the
+    // remaining maximum budget and reserve rather than requiring it twice.
+    const totalUnits=ethers.parseEther(plan.ownerGasBudgetPOL)/cap,usedUnits=state.steps.reduce((sum:bigint,entry:any)=>sum+BigInt(entry.gasUsed),0n),remainingUnits=totalUnits>usedUnits?totalUnits-usedUnits:0n;
+    assert.ok(await ethers.provider.getBalance(plan.owner)>=remainingUnits*cap+ethers.parseEther('1'),'Owner balance no longer covers the remaining reviewed budget and reserve');
+    const transaction=await send();hash=transaction.hash;state.pending={label,hash};persist();console.log(JSON.stringify({label,hash,status:'submitted'}));
+  }
   const receipt=await waitForEvolutionReceipt(ethers.provider,hash);assert.equal(receipt.status,1,'Recorded transaction failed; stop and review before retrying');
   const entry={label,hash:receipt.hash,blockNumber:receipt.blockNumber,address:receipt.contractAddress,gasUsed:receipt.gasUsed.toString(),costPOL:ethers.formatEther(receipt.gasUsed*receipt.gasPrice)};state.steps.push(entry);delete state.pending;persist();console.log(JSON.stringify(entry));return entry;
  }
