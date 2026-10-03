@@ -27,9 +27,11 @@ async function main(){
  const nftGas=await ethers.provider.estimateGas({...nftDeployment,from:owner}),timelineGas=await ethers.provider.estimateGas({...timelineDeployment,from:owner});
  const fees=await ethers.provider.getFeeData(),fee=fees.maxFeePerGas||fees.gasPrice;assert.ok(fee);
  const budget=(nftGas+timelineGas)*12n/10n+2500000n+BigInt(identityCount)*400000n+BigInt(timelineCount)*800000n+BigInt(progress.length)*600000n+1800000n;
- const balance=await ethers.provider.getBalance(owner);assert.ok(balance>budget*fee,'Fund the approved owner wallet before deploying');
+ const balance=await ethers.provider.getBalance(owner);
+ console.log(JSON.stringify({check:'owner_funding',gasUnits:budget.toString(),maxFeeGwei:ethers.formatUnits(fee,9),requiredPOL:ethers.formatEther(budget*fee),balancePOL:ethers.formatEther(balance)}));
+ assert.ok(balance>budget*fee,'Fund the approved owner wallet before deploying');
  const plan={preparedAt:new Date().toISOString(),chainId:137,owner,nonce,mode:'unsigned_preparation',legacy:contracts,expected:{IdentityNFT:nftAddress,PaymentSplitter:splitterAddress,Timeline:timelineAddress},identityCount,tokenCount,timelineCount,definitions,tokens,timelines,progress,bytecodeHashes:{IdentityNFT:ethers.keccak256(nftArtifact.bytecode),Timeline:ethers.keccak256(timelineArtifact.bytecode)},maxFeePerGasWei:fee.toString(),ownerGasBudgetPOL:ethers.formatEther(budget*fee),ownerBalancePOL:ethers.formatEther(balance),holderMigrationGasBudgetPerTokenPOL:ethers.formatEther(800000n*fee),requirements:'Maintenance; receipt verification; each holder safely transfers originals into NFTV3; finalize both migrations; preserve historical ledgers and legacy payouts; activate matching API/frontend addresses; retest live'};
  fs.writeFileSync('deployments/polygon-evolution-v3-plan.json',encode(plan)+'\n');
  console.log(JSON.stringify({mode:plan.mode,owner,identityCount,tokenCount,timelineCount,progressUsers:progress.length,ownerGasBudgetPOL:plan.ownerGasBudgetPOL,ownerBalancePOL:plan.ownerBalancePOL,holderMigrationGasBudgetPerTokenPOL:plan.holderMigrationGasBudgetPerTokenPOL,expected:plan.expected}));
 }
-main().catch(error=>{console.error(error.code||error.message);process.exitCode=1});
+main().catch(error=>{console.error(String(error.message||error.code).replace(/https?:\/\/\S+/g,'[endpoint]'));process.exitCode=1});
