@@ -1,0 +1,52 @@
+{
+  "chainId": 137,
+  "owner": "0x988d0D4f9E58913440B52B2dAa0c472E7CB7f64D",
+  "legacyAccessControl": "0x95EB5Cc874a84B966Caed1e39d4056fd2fEbd0ae",
+  "originals": [
+    {
+      "id": 1,
+      "name": "test eyekonit",
+      "owner": "0xdC31F7e4292805A75Fb5a0bFA1C2F8176D6896dc",
+      "createdAt": "1790961840",
+      "members": [
+        "0xdC31F7e4292805A75Fb5a0bFA1C2F8176D6896dc",
+        "0xf87922Fb33108C77C76DDcd31a0140F113122EB6"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "QA Public Organization Acceptance 04 Oct",
+      "owner": "0xE3D7F98eA54CA28edEFBD7F8D8ecAE4e37B79c41",
+      "createdAt": "1791089458",
+      "members": [
+        "0xE3D7F98eA54CA28edEFBD7F8D8ecAE4e37B79c41",
+        "0xbe040E52Ab02A144c508b0ee6BF7a7c941958424",
+        "0xf87922Fb33108C77C76DDcd31a0140F113122EB6"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "QA Private Organization Acceptance 04 Oct",
+      "owner": "0xf87922Fb33108C77C76DDcd31a0140F113122EB6",
+      "createdAt": "1791090953",
+      "members": [
+        "0xf87922Fb33108C77C76DDcd31a0140F113122EB6",
+        "0xbe040E52Ab02A144c508b0ee6BF7a7c941958424"
+      ]
+    }
+  ],
+  "gasEstimate": "2302995",
+  "gasLimit": "2878743",
+  "maxFeePerGas": "525879796368",
+  "budgetPOL": "2.013872782635805424",
+  "balancePOL": "6.58310063290625478",
+  "funded": true,
+  "address": "0x13151ceE94d52a1eFb47Cd2fb13a8AdA92eAa1eE",
+  "transactionHash": "0x4c3ea181abc206be7dc9862759ee5e3d32015bcb18727e6c8bb6a6aeee4373e1",
+  "status": "deployed",
+  "bytecodeHash": "0xabe6351c62e56adf96b8319226d633a8f3143281611464fef8b41796a20e5eaa",
+  "blockNumber": 94966701,
+  "gasUsed": "2283703",
+  "gasPrice": "277612676974",
+  "deployedAt": "2026-10-04T23:06:42.562Z"
+}
