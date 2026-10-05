@@ -15,9 +15,15 @@ async function main(){
  assert.equal((await oldNFT.owner()).toLowerCase(),owner.toLowerCase());assert.equal((await oldTimeline.owner()).toLowerCase(),owner.toLowerCase());
  assert.equal((await oldNFT.timeline()).toLowerCase(),contracts.Timeline.toLowerCase());
  const identityCount=Number(await oldNFT.getTotalIdentities()),tokenCount=Number(await oldNFT.getTotalTokens()),timelineCount=Number(await oldTimeline.getTotalTimelines());
- const definitions=[],tokens=[],timelines=[],progress=[],users=new Set<string>();
+ const retiredIdentityIds=[4],definitions=[],timelines=[],progress=[],users=new Set<string>();
+ const tokens:Array<{tokenId:number;holder:string;identityId:string;uri:string}>=[],retiredTokens:Array<{tokenId:number;holder:string;identityId:string;uri:string}>=[];
+ const retiredTest=await oldNFT.getIdentity(4);
+ assert.equal(retiredTest.nameHash,ethers.keccak256(ethers.toUtf8Bytes('test eyekonitrf')),'Retirement must match the specifically reviewed QA definition');
+ assert.equal(await oldNFT.isEvolutionIdentity(4),false,'Do not retire a timeline chapter');
  for(let id=1;id<=identityCount;id++){const item=await oldNFT.getIdentity(id);definitions.push({id,fields:JSON.parse(encode(item.toArray())),timelineId:(await oldNFT.identityToTimeline(id)).toString()});users.add(item.creator.toLowerCase());}
- for(let tokenId=1;tokenId<=tokenCount;tokenId++){const holder=await oldNFT.ownerOf(tokenId);users.add(holder.toLowerCase());tokens.push({tokenId,holder,identityId:(await oldNFT.tokenToIdentity(tokenId)).toString(),uri:await oldNFT.tokenURI(tokenId)});}
+ for(let tokenId=1;tokenId<=tokenCount;tokenId++){const holder=await oldNFT.ownerOf(tokenId);users.add(holder.toLowerCase());const identityId=(await oldNFT.tokenToIdentity(tokenId)).toString();const token={tokenId,holder,identityId,uri:await oldNFT.tokenURI(tokenId)};(retiredIdentityIds.includes(Number(identityId))?retiredTokens:tokens).push(token);}
+ const reviewedHolders=new Set(['0xbe040e52ab02a144c508b0ee6bf7a7c941958424','0xe3d7f98ea54ca28edefbd7f8d8ecae4e37b79c41','0xf87922fb33108c77c76ddcd31a0140f113122eb6','0xdc31f7e4292805a75fb5a0bfa1c2f8176d6896dc']);
+ for(const token of tokens)assert.ok(reviewedHolders.has(token.holder.toLowerCase()),`Existing holder ${token.holder} must be connected before any deployment`);
  for(let id=1;id<=timelineCount;id++){
   const item=await oldTimeline.getTimeline(id),chapters=[];for(let chapter=1;chapter<=Number(item.totalChapters);chapter++)chapters.push(JSON.parse(encode((await oldTimeline.getChapter(id,chapter)).toArray())));
   timelines.push({id,fields:JSON.parse(encode(item.toArray())),chapters});
@@ -26,7 +32,7 @@ async function main(){
  }
  const nonce=await ethers.provider.getTransactionCount(owner,'pending'),nftAddress=ethers.getCreateAddress({from:owner,nonce}),splitterAddress=ethers.getCreateAddress({from:owner,nonce:nonce+2}),timelineAddress=ethers.getCreateAddress({from:owner,nonce:nonce+4});
  const nftArtifact=await artifacts.readArtifact('IdentityNFTV4'),timelineArtifact=await artifacts.readArtifact('TimelineV5');
- const nftDeployment=await new ethers.ContractFactory(nftArtifact.abi,nftArtifact.bytecode).getDeployTransaction(contracts.AccessControl,contracts.IdentityNFT);
+ const nftDeployment=await new ethers.ContractFactory(nftArtifact.abi,nftArtifact.bytecode).getDeployTransaction(contracts.AccessControl,contracts.IdentityNFT,retiredIdentityIds);
  const timelineDeployment=await new ethers.ContractFactory(timelineArtifact.abi,timelineArtifact.bytecode).getDeployTransaction(contracts.AccessControl,contracts.Timeline);
  const nftGas=await ethers.provider.estimateGas({...nftDeployment,from:owner}),timelineGas=await ethers.provider.estimateGas({...timelineDeployment,from:owner});
  const fees=await ethers.provider.getFeeData(),recommendedFee=fees.maxFeePerGas||fees.gasPrice;assert.ok(recommendedFee);
@@ -40,7 +46,7 @@ async function main(){
  const fee=fundedFeeCap({gasUnits:budget,balance,reserve:ethers.parseEther('1'),baseFee:latest.baseFeePerGas,priority,recommended:recommendedFee});
  console.log(JSON.stringify({check:'owner_funding',gasUnits:budget.toString(),maxFeeGwei:ethers.formatUnits(fee,9),requiredPOL:ethers.formatEther(budget*fee),balancePOL:ethers.formatEther(balance)}));
  assert.ok(balance>budget*fee,'Fund the approved owner wallet before deploying');
- const plan={preparedAt:new Date().toISOString(),chainId:137,owner,nonce,mode:'unsigned_preparation',legacy:contracts,expected:{IdentityNFT:nftAddress,PaymentSplitter:splitterAddress,Timeline:timelineAddress},identityCount,tokenCount,timelineCount,definitions,tokens,timelines,progress,bytecodeHashes:{IdentityNFT:ethers.keccak256(nftArtifact.bytecode),Timeline:ethers.keccak256(timelineArtifact.bytecode)},maxFeePerGasWei:fee.toString(),maxPriorityFeePerGasWei:priority.toString(),ownerGasBudgetPOL:ethers.formatEther(budget*fee),ownerBalancePOL:ethers.formatEther(balance),holderMigrationGasBudgetPerTokenPOL:ethers.formatEther(800000n*fee),requirements:'Maintenance; receipt verification; each holder safely transfers originals into NFTV4; finalize both migrations; preserve historical ledgers and legacy payouts; activate matching API/frontend addresses; retest live'};
+ const plan={preparedAt:new Date().toISOString(),chainId:137,owner,nonce,mode:'unsigned_preparation',legacy:contracts,expected:{IdentityNFT:nftAddress,PaymentSplitter:splitterAddress,Timeline:timelineAddress},identityCount,tokenCount,timelineCount,retiredIdentityIds,retiredTokens,definitions,tokens,timelines,progress,bytecodeHashes:{IdentityNFT:ethers.keccak256(nftArtifact.bytecode),Timeline:ethers.keccak256(timelineArtifact.bytecode)},maxFeePerGasWei:fee.toString(),maxPriorityFeePerGasWei:priority.toString(),ownerGasBudgetPOL:ethers.formatEther(budget*fee),ownerBalancePOL:ethers.formatEther(balance),holderMigrationGasBudgetPerTokenPOL:ethers.formatEther(800000n*fee),requirements:'Maintenance; receipt verification; each holder safely transfers originals into NFTV4; finalize both migrations; preserve historical ledgers and legacy payouts; activate matching API/frontend addresses; retest live'};
  fs.writeFileSync('deployments/polygon-standard-v4-plan.json',encode(plan)+'\n');
  console.log(JSON.stringify({mode:plan.mode,owner,identityCount,tokenCount,timelineCount,progressUsers:progress.length,ownerGasBudgetPOL:plan.ownerGasBudgetPOL,ownerBalancePOL:plan.ownerBalancePOL,holderMigrationGasBudgetPerTokenPOL:plan.holderMigrationGasBudgetPerTokenPOL,expected:plan.expected}));
 }

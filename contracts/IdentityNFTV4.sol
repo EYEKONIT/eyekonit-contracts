@@ -49,6 +49,10 @@ contract IdentityNFTV4 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712, IE
     uint256 public immutable legacyIdentityCount;
     uint256 public immutable legacyTokenCount;
     uint256 public migratedTokenCount;
+    mapping(uint256 => bool) public retiredLegacyIdentities;
+    mapping(uint256 => bool) public retiredLegacyTokens;
+    uint256 public retiredLegacyTokenCount;
+    event LegacyTestIdentityRetired(uint256 indexed identityId);
     bool public migrationComplete;
     mapping(uint256 => bytes32) public legacyIdentitySnapshot;
     mapping(uint256 => bool) public isEvolutionIdentity;
@@ -93,7 +97,7 @@ contract IdentityNFTV4 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712, IE
     event SupplyLimitSet(uint256 indexed identityId, uint256 newLimit);
     event MetadataURIUpdated(uint256 indexed identityId, string newURI);
 
-    constructor(address accessControlAddress, address legacyAddress)
+    constructor(address accessControlAddress, address legacyAddress, uint256[] memory retiredIdentityIds)
         ERC721("EYEKON Identity", "EYEKON")
         Ownable(msg.sender)
         EIP712("EYEKON Identity", "2")
@@ -106,6 +110,17 @@ contract IdentityNFTV4 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712, IE
         }
         legacyIdentityCount = legacyAddress == address(0) ? 0 : legacyIdentity.getTotalIdentities();
         legacyTokenCount = legacyAddress == address(0) ? 0 : legacyIdentity.getTotalTokens();
+        for (uint256 i; i < retiredIdentityIds.length; i++) {
+            uint256 id = retiredIdentityIds[i];
+            require(id > 0 && id <= legacyIdentityCount && !retiredLegacyIdentities[id], "Invalid retired identity");
+            retiredLegacyIdentities[id] = true;
+        }
+        for (uint256 tokenId = 1; tokenId <= legacyTokenCount; tokenId++) {
+            if (retiredLegacyIdentities[legacyIdentity.tokenToIdentity(tokenId)]) {
+                retiredLegacyTokens[tokenId] = true;
+                retiredLegacyTokenCount++;
+            }
+        }
         _tokenIdCounter = legacyTokenCount;
         migrationComplete = legacyAddress == address(0) || (legacyIdentityCount == 0 && legacyTokenCount == 0);
     }
@@ -184,6 +199,13 @@ contract IdentityNFTV4 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712, IE
         require(!migrationComplete && id == _identityIdCounter + 1 && id <= legacyIdentityCount, "Import sequential legacy IDs");
         IdentityNFTV3.Identity memory old = legacyIdentity.getIdentity(id);
         require(old.id == id && !identityNameUsed[old.nameHash], "Invalid legacy identity");
+        if (retiredLegacyIdentities[id]) {
+            identityNameUsed[old.nameHash] = true;
+            legacyIdentitySnapshot[id] = keccak256(abi.encode(old));
+            _identityIdCounter = id;
+            emit LegacyTestIdentityRetired(id);
+            return;
+        }
         identities[id] = Identity(old.id,old.organizationId,old.creator,old.nameHash,old.metadataURI,0,old.maxSupply,old.price,old.isMultiEdition,old.isActive,old.requiredPreviousId,old.holderDiscount,ClaimPolicy(uint8(old.claimPolicy)),old.createdAt);
         identityNameUsed[old.nameHash] = true;
         identityToTimeline[id] = legacyIdentity.identityToTimeline(id);
@@ -198,6 +220,7 @@ contract IdentityNFTV4 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712, IE
     function onERC721Received(address, address from, uint256 tokenId, bytes calldata) external nonReentrant returns (bytes4) {
         require(msg.sender == address(legacyIdentity) && !migrationComplete, "Legacy migration only");
         require(tokenId > 0 && tokenId <= legacyTokenCount && _ownerOf(tokenId) == address(0), "Invalid legacy token");
+        require(!retiredLegacyTokens[tokenId], "Retired test edition");
         uint256 id = legacyIdentity.tokenToIdentity(tokenId);
         require(identities[id].id != 0 && legacyIdentitySnapshot[id] == keccak256(abi.encode(legacyIdentity.getIdentity(id))), "Import unchanged identity first");
         require(keccak256(bytes(legacyIdentity.tokenURI(tokenId))) == keccak256(bytes(identities[id].metadataURI)), "Legacy token metadata differs");
@@ -226,14 +249,16 @@ contract IdentityNFTV4 is ERC721URIStorage, Ownable, ReentrancyGuard, EIP712, IE
     }
 
     function finalizeMigration() external onlyOwner {
-        require(!migrationComplete && _identityIdCounter == legacyIdentityCount && migratedTokenCount == legacyTokenCount, "Migration incomplete");
+        require(!migrationComplete && _identityIdCounter == legacyIdentityCount && migratedTokenCount + retiredLegacyTokenCount == legacyTokenCount, "Migration incomplete");
         require(legacyIdentity.getTotalIdentities() == legacyIdentityCount && legacyIdentity.getTotalTokens() == legacyTokenCount, "Legacy counts changed");
         for(uint256 id=1; id<=legacyIdentityCount; id++) {
             IdentityNFTV3.Identity memory old = legacyIdentity.getIdentity(id);
             require(legacyIdentitySnapshot[id] == keccak256(abi.encode(old)), "Legacy identity changed");
-            require(identities[id].supply == old.supply, "Legacy supply not fully imported");
+            if (!retiredLegacyIdentities[id]) require(identities[id].supply == old.supply, "Legacy supply not fully imported");
         }
-        for(uint256 tokenId=1; tokenId<=legacyTokenCount; tokenId++) require(legacyIdentity.ownerOf(tokenId) == address(this) && _ownerOf(tokenId) != address(0), "Legacy token not escrowed");
+        for(uint256 tokenId=1; tokenId<=legacyTokenCount; tokenId++) {
+            if (!retiredLegacyTokens[tokenId]) require(legacyIdentity.ownerOf(tokenId) == address(this) && _ownerOf(tokenId) != address(0), "Legacy token not escrowed");
+        }
         migrationComplete = true;
     }
 

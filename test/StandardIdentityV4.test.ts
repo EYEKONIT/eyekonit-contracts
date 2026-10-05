@@ -6,7 +6,7 @@ describe('Standard identities V4: immutable definitions and approved private cla
   const [owner,creator,holder,other]=await ethers.getSigners();
   const access=await(await ethers.getContractFactory('EyekonAccessControl')).deploy();
   await access.connect(creator).registerOrganization('Standard identity QA');
-  const nft=await(await ethers.getContractFactory('IdentityNFTV4')).deploy(await access.getAddress(),ethers.ZeroAddress);
+  const nft=await(await ethers.getContractFactory('IdentityNFTV4')).deploy(await access.getAddress(),ethers.ZeroAddress,[]);
   const splitter=await(await ethers.getContractFactory('PaymentSplitterV2')).deploy(await nft.getAddress());
   await nft.setPaymentSplitter(await splitter.getAddress());
   async function voucher(id:number,who=holder.address,deadline=Math.floor(Date.now()/1000)+3600,signer=creator){
@@ -77,7 +77,7 @@ describe('Standard identities V4: immutable definitions and approved private cla
   await oldNFT.connect(creator).createEvolutionIdentity('Unlinked evolution',0,'ipfs://evolution',1,0,false,0,0,0);
   await oldNFT.connect(creator).createIdentity('Genuine unclaimed',0,'ipfs://genuine',10,0,false,0,0,0);
   await oldNFT.connect(holder).claimIdentity(1,ethers.ZeroAddress,ethers.ZeroHash,0,'0x');
-  const nft=await(await ethers.getContractFactory('IdentityNFTV4')).deploy(await access.getAddress(),await oldNFT.getAddress());
+  const nft=await(await ethers.getContractFactory('IdentityNFTV4')).deploy(await access.getAddress(),await oldNFT.getAddress(),[]);
   for(let id=1;id<=3;id++)await nft.importLegacyIdentity(id);
   expect(await nft.isEvolutionIdentity(2)).to.equal(true);
   await expect(nft.finalizeMigration()).to.be.revertedWith('Migration incomplete');
@@ -92,11 +92,28 @@ describe('Standard identities V4: immutable definitions and approved private cla
   const {creator,holder,other,access}=await fixture();
   const oldNFT=await(await ethers.getContractFactory('IdentityNFTV3')).deploy(await access.getAddress(),ethers.ZeroAddress);
   await oldNFT.connect(creator).createIdentity('Recoverable',0,'ipfs://old',2,0,false,0,0,0);await oldNFT.connect(holder).claimIdentity(1,ethers.ZeroAddress,ethers.ZeroHash,0,'0x');
-  const nft=await(await ethers.getContractFactory('IdentityNFTV4')).deploy(await access.getAddress(),await oldNFT.getAddress());await nft.importLegacyIdentity(1);
+  const nft=await(await ethers.getContractFactory('IdentityNFTV4')).deploy(await access.getAddress(),await oldNFT.getAddress(),[]);await nft.importLegacyIdentity(1);
   await oldNFT.connect(creator).setPrice(1,1);await expect(oldNFT.connect(holder)['safeTransferFrom(address,address,uint256)'](holder.address,await nft.getAddress(),1)).to.be.revertedWith('Import unchanged identity first');
   await oldNFT.connect(creator).setPrice(1,0);await oldNFT.connect(holder)['safeTransferFrom(address,address,uint256)'](holder.address,await nft.getAddress(),1);
   await expect(nft.connect(other).recoverLegacyToken(1)).to.be.revertedWith('Only holder before finalization');
   await nft.connect(holder).recoverLegacyToken(1);expect(await oldNFT.ownerOf(1)).to.equal(holder.address);expect(await nft.migratedTokenCount()).to.equal(0);
+ });
+ it('retires only the reviewed test identity without moving its holders tokens or dropping other definitions',async()=>{
+  const [owner,creator,holder,other]=await ethers.getSigners();
+  const access=await(await ethers.getContractFactory('EyekonAccessControl')).deploy(),oldNFT=await(await ethers.getContractFactory('IdentityNFTV3')).deploy(await access.getAddress(),ethers.ZeroAddress);
+  await oldNFT.connect(creator).createIdentity('Retired test',0,'ipfs://test',2,0,false,0,0,0);
+  await oldNFT.connect(holder).claimIdentity(1,ethers.ZeroAddress,ethers.ZeroHash,0,'0x');await oldNFT.connect(other).claimIdentity(1,ethers.ZeroAddress,ethers.ZeroHash,0,'0x');
+  await oldNFT.connect(creator).createIdentity('Preserved real definition',0,'ipfs://real',3,0,false,0,0,0);await oldNFT.connect(holder).claimIdentity(2,ethers.ZeroAddress,ethers.ZeroHash,0,'0x');
+  const factory=await ethers.getContractFactory('IdentityNFTV4');
+  await expect(factory.deploy(await access.getAddress(),await oldNFT.getAddress(),[3])).to.be.revertedWith('Invalid retired identity');
+  await expect(factory.deploy(await access.getAddress(),await oldNFT.getAddress(),[1,1])).to.be.revertedWith('Invalid retired identity');
+  const nft=await factory.deploy(await access.getAddress(),await oldNFT.getAddress(),[1]);await nft.importLegacyIdentity(1);await nft.importLegacyIdentity(2);
+  await expect(oldNFT.connect(holder)['safeTransferFrom(address,address,uint256)'](holder.address,await nft.getAddress(),1)).to.be.revertedWith('Retired test edition');
+  await oldNFT.connect(holder)['safeTransferFrom(address,address,uint256)'](holder.address,await nft.getAddress(),3);await nft.finalizeMigration();
+  expect(await oldNFT.ownerOf(1)).to.equal(holder.address);expect(await oldNFT.ownerOf(2)).to.equal(other.address);expect(await nft.retiredLegacyTokenCount()).to.equal(2);
+  expect((await nft.getIdentity(1)).id).to.equal(0);expect(await nft.getIdentity(2)).to.deep.equal(await oldNFT.getIdentity(2));expect(await nft.ownerOf(3)).to.equal(holder.address);
+  await expect(nft.connect(other).claimIdentity(1,ethers.ZeroAddress,ethers.ZeroHash,0,'0x')).to.be.revertedWith('Identity unavailable');
+  await expect(nft.connect(creator).createIdentity('Retired test',0,'ipfs://resurrect',1,0,false,0,0,0)).to.be.revertedWith('Identity name already exists');
  });
  it('preserves personal timeline chapters and historical progress in the coordinated migration',async()=>{
   const [owner,creator,holder]=await ethers.getSigners();
@@ -104,7 +121,7 @@ describe('Standard identities V4: immutable definitions and approved private cla
   const oldTimeline=await(await ethers.getContractFactory('TimelineV4')).deploy(await access.getAddress(),await empty.getAddress()),oldNFT=await(await ethers.getContractFactory('IdentityNFTV3')).deploy(await access.getAddress(),ethers.ZeroAddress);
   await oldTimeline.setIdentityContract(await oldNFT.getAddress());await oldNFT.setTimelineContract(await oldTimeline.getAddress());
   await oldTimeline.connect(creator).createTimeline(0,'Preserved personal journey','Original',2,25);await oldNFT.connect(creator).createEvolutionIdentity('Original opening',0,'ipfs://original',2,0,false,0,0,0);await oldTimeline.connect(creator).addChapter(1,1,1,false);await oldNFT.connect(creator).linkIdentityToTimeline(1,1);await oldNFT.connect(holder).claimIdentity(1,ethers.ZeroAddress,ethers.ZeroHash,0,'0x');
-  const nft=await(await ethers.getContractFactory('IdentityNFTV4')).deploy(await access.getAddress(),await oldNFT.getAddress()),timeline=await(await ethers.getContractFactory('TimelineV5')).deploy(await access.getAddress(),await oldTimeline.getAddress());
+  const nft=await(await ethers.getContractFactory('IdentityNFTV4')).deploy(await access.getAddress(),await oldNFT.getAddress(),[]),timeline=await(await ethers.getContractFactory('TimelineV5')).deploy(await access.getAddress(),await oldTimeline.getAddress());
   await nft.importLegacyIdentity(1);await timeline.importLegacyTimeline(1);await nft.setTimelineContract(await timeline.getAddress());await timeline.setIdentityContract(await nft.getAddress());await oldNFT.setTimelineContract(await timeline.getAddress());await timeline.importLegacyProgress(1,holder.address);
   await oldNFT.connect(holder)['safeTransferFrom(address,address,uint256)'](holder.address,await nft.getAddress(),1);await nft.finalizeMigration();await timeline.finalizeMigration();
   expect(await timeline.getTimeline(1)).to.deep.equal(await oldTimeline.getTimeline(1));expect(await timeline.getChapter(1,1)).to.deep.equal(await oldTimeline.getChapter(1,1));expect(await timeline.getUserProgress(1,holder.address)).to.deep.equal(await oldTimeline.getUserProgress(1,holder.address));
