@@ -334,7 +334,7 @@
       "costPOL": "0.08284840175881665"
     }
   ],
-  "status": "awaiting_holder_transfers",
+  "status": "finalized_awaiting_website_cutover",
   "tokens": [
     {
       "tokenId": 2,
@@ -520,6 +520,18 @@
       "count": "1",
       "lastCompletedAt": "1791083543",
       "isComplete": true
+    }
+  ],
+  "finalizations": [
+    {
+      "label": "Finalize verified NFT ownership",
+      "hash": "0x9604d52d2979c98c332d5c98f2273fb5d6a0c8c9ce59e2e2fb0aa0bc4e109d1b",
+      "blockNumber": 94982588
+    },
+    {
+      "label": "Finalize verified timeline progress",
+      "hash": "0x504071243bccc7e185568babc0d93e6bbfdf711d8eed63eda32cee3fbde85a1c",
+      "blockNumber": 94982591
     }
   ]
 }
